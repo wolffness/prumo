@@ -335,6 +335,7 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::PickTheme => handle_pick_theme(app, key),
         Mode::CommandPalette => handle_command_palette(app, key),
         Mode::Share => handle_share(app, key),
+        Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
     }
@@ -369,6 +370,93 @@ fn handle_welcome(app: &mut App, key: KeyEvent) {
 /// same QR without rebinding.
 fn handle_share(app: &mut App, _key: KeyEvent) {
     app.mode = Mode::Normal;
+}
+
+/// In-TUI note panel. View mode: j/k scroll, `i`/`a` edit, `o` external
+/// editor, Esc/q close (persisting pending edits). Insert mode: type freely,
+/// Esc back to view. Ctrl+S saves in either mode.
+fn handle_note(app: &mut App, key: KeyEvent) {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    let Some(panel) = app.note_panel.as_mut() else {
+        app.mode = Mode::Normal;
+        return;
+    };
+
+    if ctrl && key.code == KeyCode::Char('s') {
+        match panel.save() {
+            Ok(()) => app.flash("note saved"),
+            Err(e) => app.flash(format!("note save failed: {e}")),
+        }
+        return;
+    }
+
+    if panel.insert {
+        match key.code {
+            KeyCode::Esc => {
+                panel.insert = false;
+                panel.clamp_col();
+            }
+            KeyCode::Enter => panel.newline(),
+            KeyCode::Backspace => panel.backspace(),
+            KeyCode::Left => panel.move_left(),
+            KeyCode::Right => panel.move_right(),
+            KeyCode::Up => panel.move_up(),
+            KeyCode::Down => panel.move_down(),
+            KeyCode::Tab => {
+                panel.insert_char(' ');
+                panel.insert_char(' ');
+            }
+            // Mirror handle_insert: swallow unmapped Ctrl chords but let
+            // AltGr (Ctrl+Alt) characters through.
+            KeyCode::Char(c) if !ctrl || key.modifiers.contains(KeyModifiers::ALT) => {
+                panel.insert_char(c);
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => close_note_panel(app, false),
+        KeyCode::Char('o') => close_note_panel(app, true),
+        KeyCode::Char('i') => panel.insert = true,
+        KeyCode::Char('a') => {
+            panel.insert = true;
+            panel.move_right();
+        }
+        KeyCode::Char('j') | KeyCode::Down => panel.move_down(),
+        KeyCode::Char('k') | KeyCode::Up => panel.move_up(),
+        KeyCode::Char('h') | KeyCode::Left => panel.move_left(),
+        KeyCode::Char('l') | KeyCode::Right => panel.move_right(),
+        KeyCode::Char('g') => panel.move_top(),
+        KeyCode::Char('G') => panel.move_bottom(),
+        _ => {}
+    }
+}
+
+/// Close the note panel, persisting unsaved edits. With `to_editor`, queue
+/// the note in the external editor after closing (the panel's buffer was
+/// just written, so the editor sees the latest content).
+fn close_note_panel(app: &mut App, to_editor: bool) {
+    let Some(mut panel) = app.note_panel.take() else {
+        app.mode = Mode::Normal;
+        return;
+    };
+    if panel.dirty {
+        match panel.save() {
+            Ok(()) => app.flash("note saved"),
+            Err(e) => {
+                // Keep the panel open rather than dropping unsaved edits.
+                app.flash(format!("note save failed: {e}"));
+                app.note_panel = Some(panel);
+                return;
+            }
+        }
+    }
+    app.mode = Mode::Normal;
+    if to_editor {
+        app.queue_editor_path(panel.path.clone());
+    }
 }
 
 /// What the draft buffer changed (or didn't) in response to a key. Lets
@@ -972,6 +1060,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('i') => Action::BeginEditInsert,
         KeyCode::Char('o') => Action::OpenNote,
         KeyCode::Char('O') => Action::CreateOrOpenNote,
+        KeyCode::Char('N') => Action::OpenNotePanel,
         KeyCode::Char('x') => Action::ToggleComplete,
         // 'dd' chord. First press arms; second fires.
         KeyCode::Char('d') if app.chord.toggle('d') => Action::Delete,
@@ -1239,6 +1328,7 @@ fn apply_action(app: &mut App, action: Action) {
         Action::CopyBody => copy_current_task(app, true),
         Action::OpenNote => app.open_note_for_current(),
         Action::CreateOrOpenNote => app.create_or_open_note_for_current(),
+        Action::OpenNotePanel => app.open_note_panel_for_current(),
         Action::OpenShare => match app.ensure_share_started() {
             Ok(_) => {
                 app.mode = Mode::Share;
@@ -1333,6 +1423,52 @@ mod tests {
 
     fn resolve(app: &mut App, key: KeyEvent) -> Option<Action> {
         resolve_normal_key(app, key, &KeyBindings::default())
+    }
+
+    /// End-to-end note-panel flow through the real key dispatcher: `N`
+    /// creates the note + token, `i` enters insert, typed text lands in the
+    /// buffer, and Esc-Esc closes the panel persisting the edit to disk.
+    #[test]
+    fn note_panel_full_flow_creates_edits_and_saves_note() {
+        let dir = std::env::temp_dir().join(format!(
+            "tuxedo-note-e2e-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let todo = dir.join("todo.txt");
+        let raw = "Write report +work\n";
+        std::fs::write(&todo, raw).expect("seed todo");
+        let cfg = Config {
+            notes_dir: Some(dir.join("notes").to_string_lossy().into_owned()),
+            ..Config::default()
+        };
+        let mut app = App::new(todo, raw.to_string(), "2026-05-06".into(), cfg);
+        let kb = KeyBindings::default();
+
+        handle_key(&mut app, key('N'), &kb);
+        assert_eq!(app.mode, Mode::Note, "N should open the note panel");
+        let task_raw = app.tasks()[0].raw.clone();
+        assert!(task_raw.contains("note:"), "note token appended: {task_raw}");
+
+        handle_key(&mut app, key('G'), &kb); // jump to last line of template
+        handle_key(&mut app, key('i'), &kb);
+        for c in "hello código".chars() {
+            handle_key(&mut app, key(c), &kb);
+        }
+        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        assert_eq!(app.mode, Mode::Note, "first Esc only leaves insert");
+        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        assert_eq!(app.mode, Mode::Normal, "second Esc closes the panel");
+        assert!(app.note_panel.is_none());
+
+        let rel = tuxedo::note::note_rel_from_raw(&app.tasks()[0].raw).expect("note token");
+        let content =
+            std::fs::read_to_string(dir.join("notes").join(rel)).expect("note file on disk");
+        assert!(
+            content.contains("hello código"),
+            "typed text persisted: {content}"
+        );
     }
 
     fn welcome_app(name: &str) -> (App, std::path::PathBuf) {

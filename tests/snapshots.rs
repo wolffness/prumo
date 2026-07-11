@@ -300,6 +300,31 @@ fn help_overlay() {
 }
 
 #[test]
+fn note_panel_overlay() {
+    let mut app = make_app();
+    app.note_panel = Some(tuxedo::app::NotePanel {
+        path: PathBuf::from("/tmp/tuxedo-snapshot-note.md"),
+        title: "Write PR summary".to_string(),
+        lines: vec![
+            "# Write PR summary".to_string(),
+            String::new(),
+            "Some context about the task.".to_string(),
+            String::new(),
+            "- [ ] draft outline".to_string(),
+            "- [x] collect links".to_string(),
+            "> reviewer prefers short PRs".to_string(),
+        ],
+        row: 2,
+        col: 5,
+        insert: false,
+        dirty: true,
+        scroll: std::cell::Cell::new(0),
+    });
+    app.mode = Mode::Note;
+    snapshot_app("note_panel_overlay", &app);
+}
+
+#[test]
 fn settings_overlay() {
     let mut app = make_app();
     app.mode = Mode::Settings;

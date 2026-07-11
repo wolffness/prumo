@@ -164,56 +164,79 @@ impl App {
     }
 
     fn open_note_for_current_with_create(&mut self, create: bool) {
-        let Some(task) = self.cur_task().cloned() else {
+        if let Some((path, _task)) = self.ensure_note_for_current(create) {
+            self.queue_editor_path(path);
+        }
+    }
+
+    /// Open the in-TUI note panel for the task under the cursor, creating the
+    /// note (and its `note:` token) like `O` does when it doesn't exist yet.
+    pub fn open_note_panel_for_current(&mut self) {
+        let Some((path, task)) = self.ensure_note_for_current(true) else {
             return;
         };
+        let title = crate::todo::body_only(&task.raw);
+        match super::NotePanel::load(path, title) {
+            Ok(panel) => {
+                self.note_panel = Some(panel);
+                self.mode = super::Mode::Note;
+            }
+            Err(e) => self.flash(format!("note read failed: {e}")),
+        }
+    }
+
+    /// Shared note-resolution arc for `o`/`O`/`N`: resolve the task's note
+    /// target, optionally appending the `note:` token and creating the file
+    /// from the template. Returns the note path once it exists on disk.
+    /// Flash messages for every abort live here so all entry points agree.
+    fn ensure_note_for_current(&mut self, create: bool) -> Option<(std::path::PathBuf, crate::todo::Task)> {
+        let task = self.cur_task().cloned()?;
         let target = note::target_for_task(&task, self.notes_dir());
 
         if !target.existed_in_task {
             if !create {
                 self.flash("no note; press O to create");
-                return;
+                return None;
             }
             if matches!(self.view(), View::Archive) {
                 self.flash("archived task has no note");
-                return;
+                return None;
             }
-            let Some(abs) = self.cur_task_index_in_tasks() else {
-                return;
-            };
+            let abs = self.cur_task_index_in_tasks()?;
             match self.store.append_at(abs, &format!("note:{}", target.rel)) {
                 EditOutcome::Saved { abs } => self.after_mutation(abs),
                 EditOutcome::Aborted(r) => {
                     self.handle_reconcile_abort(r);
-                    return;
+                    return None;
                 }
                 EditOutcome::Error(e) => {
                     self.flash(format!("note link failed: {e}"));
-                    return;
+                    return None;
                 }
-                EditOutcome::Empty | EditOutcome::OutOfRange | EditOutcome::TermNotFound => return,
+                EditOutcome::Empty | EditOutcome::OutOfRange | EditOutcome::TermNotFound => {
+                    return None;
+                }
             }
         }
 
         if target.path.exists() {
-            self.queue_editor_path(target.path);
-            return;
+            return Some((target.path, task));
         }
         if !create {
             self.flash("note missing; press O to create");
-            return;
+            return None;
         }
         if let Some(parent) = target.path.parent()
             && let Err(e) = std::fs::create_dir_all(parent)
         {
             self.flash(format!("note mkdir failed: {e}"));
-            return;
+            return None;
         }
         if let Err(e) = std::fs::write(&target.path, note::note_template(&task)) {
             self.flash(format!("note create failed: {e}"));
-            return;
+            return None;
         }
-        self.queue_editor_path(target.path);
+        Some((target.path, task))
     }
 
     pub fn undo(&mut self) {

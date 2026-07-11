@@ -1,0 +1,36 @@
+---
+source: tests/snapshots.rs
+expression: buffer_to_text(&buf)
+---
+ FILTERS                   ▶▮◀ /tmp/tuxedo-snapshot.txt  •  15 tas DETAIL                           
+     ┌ * Write PR summary · note ─────────────────────────────────────────────────────────────┐     
+ PROJ│# Write PR summary                                                                      │     
+   +w│                                                                                        │     
+   +h│Some context about the task.                                                            │     
+   +f│                                                                                        │     
+   +h│- [ ] draft outline                                                                     │     
+   +l│- [x] collect links                                                                     │     
+   +p│> reviewer prefers short PRs                                                            │     
+   +t│                                                                                        │     
+     │                                                                                        │rd   
+ CONT│                                                                                        │     
+   @e│                                                                                        │     
+   @h│                                                                                        │     
+   @l│                                                                                        │     
+   @p│                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │                                                                                        │     
+     │ i edit · o editor · Ctrl-S save · Esc/q close (saves)                                  │     
+     └────────────────────────────────────────────────────────────────────────────────────────┘     
+                                                                                                    
+ NOTE   j/k · n new · r reschedule · x done · / search · ? he15 open · 2026-05-06 · tuxedo 2026.6.3

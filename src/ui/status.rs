@@ -30,6 +30,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Share => "SHARE".into(),
         Mode::PickTheme => "PICK THEME".into(),
         Mode::Welcome => "WELCOME".into(),
+        Mode::Note => {
+            if app.note_panel.as_ref().is_some_and(|p| p.insert) {
+                "NOTE·INSERT".into()
+            } else {
+                "NOTE".into()
+            }
+        }
     };
     if matches!(app.view, View::Archive) {
         mode_label = "ARCHIVE".into();

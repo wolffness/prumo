@@ -51,6 +51,8 @@ pub enum Action {
     CopyBody,
     OpenNote,
     CreateOrOpenNote,
+    /// `N` — open the in-TUI note panel (creates the note if needed).
+    OpenNotePanel,
     EscapeStack,
     /// Open the phone-capture overlay (QR + URL). First invocation lazily
     /// binds the HTTP server; subsequent invocations just re-show the
@@ -108,6 +110,7 @@ impl Action {
             "copy_body" => Some(Self::CopyBody),
             "open_note" | "note" => Some(Self::OpenNote),
             "create_or_open_note" | "create_note" => Some(Self::CreateOrOpenNote),
+            "open_note_panel" | "note_panel" => Some(Self::OpenNotePanel),
             "escape_stack" | "escape" => Some(Self::EscapeStack),
             "open_share" | "share" => Some(Self::OpenShare),
             "open_theme_picker" | "theme_picker" => Some(Self::OpenThemePicker),

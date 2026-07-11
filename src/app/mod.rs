@@ -19,6 +19,7 @@ mod draft;
 mod draft_overlay;
 mod flash;
 mod mutations;
+pub mod note_panel;
 pub mod palette;
 mod picker;
 mod prefs;
@@ -42,6 +43,7 @@ pub use draft_overlay::{
     format_rec_value, recurrence_next_preview,
 };
 pub use flash::Flash;
+pub use note_panel::NotePanel;
 pub use palette::CommandPaletteState;
 pub use prefs::{Layout, Prefs};
 pub use selection::Selection;
@@ -155,6 +157,8 @@ pub struct App {
     /// Path queued for opening in the user's editor after the TUI temporarily
     /// restores the terminal. Set by OpenNote and drained by the run loop.
     pending_editor_path: Option<PathBuf>,
+    /// In-TUI note editor. `Some` only while `Mode::Note` is active.
+    pub note_panel: Option<NotePanel>,
     /// Theme index captured when the theme picker opened, so cancel
     /// can restore it.
     theme_pick_orig: usize,
@@ -218,6 +222,7 @@ impl App {
             share: None,
             notes_dir: note_dir,
             pending_editor_path: None,
+            note_panel: None,
             theme_pick_orig: 0,
             week_start: WeekStart::Sunday,
         };

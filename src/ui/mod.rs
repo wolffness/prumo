@@ -16,6 +16,7 @@ pub mod help;
 pub mod hyperlinks;
 pub mod list;
 pub mod logo;
+pub mod note_panel;
 pub mod settings;
 pub mod share;
 pub mod status;
@@ -163,6 +164,15 @@ pub fn draw(frame: &mut Frame, app: &App) {
             let r = centered_in(area, w, h);
             frame.render_widget(Clear, r);
             theme_picker::render(frame, r, app);
+        }
+        Mode::Note => {
+            let h: u16 = area.height.saturating_sub(3).min(HELP_MAX_H);
+            let w: u16 = (u32::from(area.width) * 9 / 10)
+                .clamp(u32::from(HELP_MIN_W), u32::from(HELP_MAX_W))
+                as u16;
+            let r = centered_in(area, w, h);
+            frame.render_widget(Clear, r);
+            note_panel::render(frame, r, app);
         }
         Mode::Welcome => {
             let r = centered_in(area, welcome::WIDTH, welcome::HEIGHT);

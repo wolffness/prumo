@@ -35,6 +35,7 @@ const EDITING: Section = (
         ("yy", "copy line to clipboard"),
         ("yb", "copy body only"),
         ("u", "undo"),
+        ("N", "note panel (in-app)"),
     ],
 );
 

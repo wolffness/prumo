@@ -1,6 +1,5 @@
 ---
 source: tests/snapshots.rs
-assertion_line: 226
 expression: buffer_to_text(&buf)
 ---
  FILTERS                   ▶▮◀ /tmp/tuxedo-snapshot.txt  •  15 tas DETAIL                           
@@ -24,9 +23,9 @@ expression: buffer_to_text(&buf)
                     │   copy body to clipboard                              yb │                    
                     │   open task note                                       o │                    
                     │   create or open task note                             O │                    
+                    │   edit note in panel                                   N │                    
                     │   undo                                                 u │                    
                     │   cursor down                                      j / ↓ │                    
-                    │   cursor up                                        k / ↑ │                    
                     │  ↑↓ / Ctrl-N/P navigate · Enter run · Esc cancel         │                    
                     └──────────────────────────────────────────────────────────┘                    
                                                                                                     

@@ -34,6 +34,10 @@ pub enum Mode {
     PickSavedFilter,  // j/k cycles through saved searches to apply
     PromptSaveFilter, // text input → name the current search and save it
     CommandPalette,
+    /// In-TUI note panel (`N`): view and edit the current task's Markdown
+    /// note without leaving the app. Esc closes (saving pending edits);
+    /// `i`/`e` enter Insert, Esc returns to view.
+    Note,
     /// QR + URL overlay for the in-TUI capture server. Any key
     /// dismisses; press `s` again to re-open without rebinding (the
     /// server stays running once started).

@@ -78,6 +78,11 @@ pub const ENTRIES: &[PaletteEntry] = &[
         action: Action::CreateOrOpenNote,
     },
     PaletteEntry {
+        label: "edit note in panel",
+        keys: "N",
+        action: Action::OpenNotePanel,
+    },
+    PaletteEntry {
         label: "undo",
         keys: "u",
         action: Action::Undo,
