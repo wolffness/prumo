@@ -9,7 +9,7 @@ expression: buffer_to_text(&buf)
    config file                 /tmp/tuxedo-snapshot.toml                                            
                                                                                                     
  DISPLAY                                                                                            
-   theme                       Muted Slate ▾  (T to cycle)                                          
+   theme                       Phosphor Green ▾  (T to cycle)                                       
    density                     compact ▾  (D to cycle)                                              
    line numbers                on  (L to toggle)                                                    
    status bar                  on                                                                   

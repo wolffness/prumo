@@ -51,6 +51,39 @@ const fn rgb(r: u8, g: u8, b: u8) -> Color {
     Color::Rgb(r, g, b)
 }
 
+/// Monochrome CRT-style theme: every color is a brightness step of the same
+/// fluorescent green, like a P1-phosphor terminal. First in `BUILT_IN`, so it
+/// is also the factory default when the config names no (or an unknown)
+/// theme.
+pub const PHOSPHOR: Theme = Theme {
+    name: "Phosphor Green",
+    bg: rgb(0x02, 0x0a, 0x02),
+    panel: rgb(0x04, 0x12, 0x04),
+    border: rgb(0x0f, 0x3f, 0x0f),
+    fg: rgb(0x33, 0xff, 0x33),
+    dim: rgb(0x1d, 0x8f, 0x1d),
+    accent: rgb(0x66, 0xff, 0x66),
+    cursor: rgb(0x33, 0xff, 0x33),
+    selection: rgb(0x0c, 0x4f, 0x0c),
+    statusbar: rgb(0x04, 0x12, 0x04),
+    status_fg: rgb(0x33, 0xff, 0x33),
+    mode_fg: rgb(0x02, 0x0a, 0x02),
+    mode_bg: rgb(0x33, 0xff, 0x33),
+    pri_a: rgb(0xaa, 0xff, 0xaa),
+    pri_b: rgb(0x77, 0xff, 0x77),
+    pri_c: rgb(0x44, 0xff, 0x44),
+    pri_d: rgb(0x2a, 0xdf, 0x2a),
+    pri_other: rgb(0x1d, 0x8f, 0x1d),
+    project: rgb(0x66, 0xff, 0x66),
+    context: rgb(0x2a, 0xdf, 0x2a),
+    due: rgb(0x77, 0xff, 0x77),
+    overdue: rgb(0xcc, 0xff, 0xcc),
+    today: rgb(0xaa, 0xff, 0xaa),
+    done: rgb(0x14, 0x5f, 0x14),
+    selected: rgb(0x0c, 0x4f, 0x0c),
+    matched: rgb(0xaa, 0xff, 0xaa),
+};
+
 pub const MUTED: Theme = Theme {
     name: "Muted Slate",
     bg: rgb(0x1a, 0x1d, 0x23),
@@ -196,7 +229,7 @@ pub const TERMINAL: Theme = Theme {
     matched: Color::Yellow,
 };
 
-pub const BUILT_IN: &[&Theme] = &[&MUTED, &DAWN, &NORD, &MATRIX, &TERMINAL];
+pub const BUILT_IN: &[&Theme] = &[&PHOSPHOR, &MUTED, &DAWN, &NORD, &MATRIX, &TERMINAL];
 
 static REGISTRY: OnceLock<Vec<&'static Theme>> = OnceLock::new();
 
@@ -627,11 +660,7 @@ matched = #b58900
 #[cfg(test)]
 mod phosphor_regression {
     #[test]
-    fn shipped_phosphor_theme_parses() {
-        let body = include_str!("../docs/themes/phosphor-green.toml");
-        match super::parse_theme(body) {
-            Ok(t) => assert_eq!(t.name, "Phosphor Green"),
-            Err(e) => panic!("phosphor-green.toml failed to parse: {e}"),
-        }
+    fn phosphor_is_the_factory_default_theme() {
+        assert_eq!(super::BUILT_IN[0].name, "Phosphor Green");
     }
 }
