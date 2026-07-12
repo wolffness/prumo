@@ -106,7 +106,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let hint = if panel.insert {
         "Esc view · Enter newline · Ctrl-S save"
     } else {
-        "i edit · o editor · Ctrl-S save · Esc/q close (saves)"
+        "i edit · Space toggle · n subtask · o editor · Esc/q close (saves)"
     };
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
@@ -124,6 +124,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 /// characters. Returns an owned line so callers can style transient strings.
 pub(crate) fn markdown_line(theme: &Theme, raw: &str) -> Line<'static> {
     let trimmed = raw.trim_start();
+    // Completed subtasks fade out so open ones carry the visual weight.
+    if crate::subtasks::checkbox_state(raw) == Some(true) {
+        return Line::from(Span::styled(
+            raw.to_string(),
+            Style::default()
+                .fg(theme.done)
+                .add_modifier(Modifier::CROSSED_OUT),
+        ));
+    }
     let base = if trimmed.starts_with('#') {
         Style::default()
             .fg(theme.accent)

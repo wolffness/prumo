@@ -549,6 +549,13 @@ fn handle_note(app: &mut App, key: KeyEvent) {
         KeyCode::Char('d') if app.chord.toggle('d') => panel.delete_line(),
         KeyCode::Char('g') => panel.move_top(),
         KeyCode::Char('G') => panel.move_bottom(),
+        // Subtasks: Space toggles the checkbox under the cursor; `n` starts
+        // a new `- [ ]` line at the end of the note.
+        KeyCode::Char(' ') if !panel.toggle_checkbox() => {
+            app.flash("not a subtask line (- [ ] …)");
+        }
+        KeyCode::Char(' ') => {}
+        KeyCode::Char('n') => panel.append_subtask(),
         KeyCode::PageUp => panel.page_up(NOTE_PAGE_ROWS),
         KeyCode::PageDown => panel.page_down(NOTE_PAGE_ROWS),
         _ => {}
@@ -1608,6 +1615,48 @@ mod tests {
         );
         // The original is gone: attaching MOVES the file into the project.
         assert!(!src.exists());
+    }
+
+    /// Subtask flow through the real key dispatcher: `n` in the note panel
+    /// appends a `- [ ]` line, typed text lands on it, Space toggles it, and
+    /// the app reports progress from the saved note.
+    #[test]
+    fn note_panel_subtasks_toggle_and_report_progress() {
+        let dir = std::env::temp_dir().join(format!(
+            "tuxedo-subtask-e2e-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(dir.join("notes")).expect("mkdir");
+        std::fs::write(dir.join("notes/n.md"), "context line\n").expect("seed note");
+        let todo = dir.join("todo.txt");
+        let raw = "Launch campaign note:n.md\n";
+        std::fs::write(&todo, raw).expect("seed todo");
+        let cfg = Config {
+            notes_dir: Some(dir.join("notes").to_string_lossy().into_owned()),
+            ..Config::default()
+        };
+        let mut app = App::new(todo, raw.to_string(), "2026-05-06".into(), cfg);
+        let kb = KeyBindings::default();
+
+        handle_key(&mut app, key('m'), &kb);
+        handle_key(&mut app, key('n'), &kb); // new subtask, enters insert
+        for c in "brief the client".chars() {
+            handle_key(&mut app, key(c), &kb);
+        }
+        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        // Cursor is on the new subtask line: Space marks it done.
+        handle_key(&mut app, key(' '), &kb);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        assert_eq!(app.mode, Mode::Normal);
+
+        let body = std::fs::read_to_string(dir.join("notes/n.md")).expect("note saved");
+        assert!(
+            body.contains("- [x] brief the client"),
+            "subtask toggled and persisted: {body}"
+        );
+        let task = app.tasks()[0].clone();
+        assert_eq!(app.subtask_progress(&task), Some((1, 1)));
     }
 
     /// `x` completes with a done_at timestamp, archives to done.txt, and the

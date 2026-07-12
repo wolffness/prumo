@@ -10,6 +10,7 @@ expression: buffer_to_text(&buf)
  CONTEXTS                                                          contexts                         
    tag with @context                                                                                
                                                                    NOTE                             
+                                                                   ░░░░░░░░░░░░░░░░░░░░ 0/1         
                                                                    # Briefing                       
                                                                                                     
                                                                    Context for the client call.     
@@ -19,7 +20,6 @@ expression: buffer_to_text(&buf)
                                                                                                     
                                                                    FILES                            
                                                                    spec.pdf                         
-                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

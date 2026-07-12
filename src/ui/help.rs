@@ -45,6 +45,7 @@ const NOTES_FILES: Section = (
         ("  i / Esc", "panel: write / back·close"),
         ("  Shift+arrows", "panel: select text"),
         ("  Del/Backspace", "panel: delete selection"),
+        ("  Space / n", "panel: toggle / new subtask"),
         ("  Ctrl-S / o", "panel: save / $EDITOR"),
         ("o / O", "open / create note in $EDITOR"),
         ("t", "attach file (drag or path)"),

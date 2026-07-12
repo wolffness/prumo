@@ -233,6 +233,24 @@ fn push_note_lines<'a>(rows: &mut Vec<Line<'a>>, theme: &Theme, app: &App, t: &T
             return;
         }
     };
+    // Subtask progress bar (amber, CRT-style) right under the NOTE header.
+    if let Some((done, total)) = crate::subtasks::progress(&body) {
+        let bar_w = wrap_w.saturating_sub(10).clamp(6, 20);
+        rows.push(line_panel(
+            theme,
+            vec![
+                Span::raw(" "),
+                Span::styled(
+                    crate::subtasks::bar(done, total, bar_w),
+                    Style::default().fg(crate::ui::task_row::AMBER),
+                ),
+                Span::styled(
+                    format!(" {done}/{total}"),
+                    Style::default().fg(crate::ui::task_row::AMBER),
+                ),
+            ],
+        ));
+    }
     let mut shown = 0usize;
     for raw_line in body.lines() {
         if shown >= NOTE_PREVIEW_MAX_LINES {

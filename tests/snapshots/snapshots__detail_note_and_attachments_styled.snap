@@ -10,6 +10,7 @@ expression: buffer_to_styled(&buf)
 {fg=#2adf2a bg=#041204 mod=bold} CONTEXTS{/}{fg=#33ff33 bg=#041204}                 {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#1d8f1d bg=#041204} contexts  {/}{fg=#33ff33 bg=#041204}                       {/}
 {fg=#33ff33 bg=#041204}   {/}{fg=#1d8f1d bg=#041204}tag with {/}{fg=#2adf2a bg=#041204}@context{/}{fg=#33ff33 bg=#041204}      {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#1d8f1d bg=#041204 mod=bold} NOTE{/}{fg=#33ff33 bg=#041204}                             {/}
+{fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204} {/}{fg=#ffb000 bg=#041204}░░░░░░░░░░░░░░░░░░░░ 0/1{/}{fg=#33ff33 bg=#041204}         {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204} {/}{fg=#66ff66 bg=#041204 mod=bold}# Briefing{/}{fg=#33ff33 bg=#041204}                       {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204} Context for the client call.     {/}
@@ -19,7 +20,6 @@ expression: buffer_to_styled(&buf)
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#1d8f1d bg=#041204 mod=bold} FILES{/}{fg=#33ff33 bg=#041204}                            {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204} {/}{fg=#66ff66 bg=#041204 mod=underlined}spec.pdf{/}{fg=#33ff33 bg=#041204}                         {/}
-{fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}

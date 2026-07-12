@@ -25,11 +25,11 @@ expression: buffer_to_text(&buf)
      │    yb                copy body only              i / Esc         panel: write / back·cl│     
      │    u                 undo                        Shift+arrows    panel: select text    │     
      │                                                  Del/Backspace   panel: delete selectio│     
-     │  SYSTEM                                          Ctrl-S / o      panel: save / $EDITOR │     
-     │    : / Ctrl-P        command palette           o / O             open / create note in │     
-     │    s                 share capture QR          t                 attach file (drag or p│     
-     │    ? / ,             help / settings           Enter             open attachments      │     
-     │    q                 quit                                                              │     
+     │  SYSTEM                                          Space / n       panel: toggle / new su│     
+     │    : / Ctrl-P        command palette             Ctrl-S / o      panel: save / $EDITOR │     
+     │    s                 share capture QR          o / O             open / create note in │     
+     │    ? / ,             help / settings           t                 attach file (drag or p│     
+     │    q                 quit                      Enter             open attachments      │     
      │────────────────────────────────────────────────────────────────────────────────────────│     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     

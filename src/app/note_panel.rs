@@ -380,6 +380,32 @@ impl NotePanel {
         self.clamp_col();
     }
 
+    /// Toggle the `- [ ]`/`- [x]` checkbox on the cursor line. Returns false
+    /// (no-op) when the line isn't a checkbox.
+    pub fn toggle_checkbox(&mut self) -> bool {
+        match crate::subtasks::toggle_line(&self.lines[self.row]) {
+            Some(flipped) => {
+                self.lines[self.row] = flipped;
+                self.dirty = true;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Append a fresh `- [ ] ` subtask line at the end of the note and put
+    /// the cursor after it in insert mode, ready to type the description.
+    pub fn append_subtask(&mut self) {
+        if self.lines.last().is_some_and(|l| !l.trim().is_empty()) {
+            self.lines.push(String::new());
+        }
+        *self.lines.last_mut().expect("buffer keeps at least one line") = "- [ ] ".to_string();
+        self.row = self.lines.len() - 1;
+        self.col = self.cur_line_len();
+        self.insert = true;
+        self.dirty = true;
+    }
+
     pub fn page_down(&mut self, rows: usize) {
         self.row = (self.row + rows).min(self.lines.len() - 1);
         self.clamp_col();

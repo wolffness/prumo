@@ -19,7 +19,15 @@ pub struct RowOpts<'a> {
     /// rendered body. Empty (the common case) means render everything,
     /// byte-for-byte as before.
     pub hidden_keys: &'a [String],
+    /// Subtask checkbox progress from the task's note, rendered as a
+    /// trailing amber `[done/total]` badge. `None` hides the badge.
+    pub subtask_progress: Option<(usize, usize)>,
 }
+
+/// Retro amber for subtask progress, shared by the list badge and the
+/// DETAIL bar. Deliberately theme-independent — amber phosphor was the
+/// other classic CRT color, and it reads well on every built-in dark bg.
+pub const AMBER: ratatui::style::Color = ratatui::style::Color::Rgb(0xff, 0xb0, 0x00);
 
 pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<'a> {
     let mut spans: Vec<Span<'a>> = Vec::new();
@@ -125,6 +133,13 @@ pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<
         );
         emitted_body_token = true;
         rest = &rest[tok_end..];
+    }
+    if let Some((done, total)) = opts.subtask_progress {
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(
+            format!("[{done}/{total}]"),
+            Style::default().fg(AMBER),
+        ));
     }
     let line_style = if opts.cursor {
         // Bright cursor backgrounds (e.g. phosphor/CRT themes) would render
@@ -398,6 +413,7 @@ mod tests {
             match_term: Some("a"),
             today: "2026-05-06",
             hidden_keys: &[],
+            subtask_progress: None,
         };
         // Build must not panic; we don't assert on the rendered spans.
         let _ = build_line(&task, opts, &MUTED);
@@ -419,6 +435,7 @@ mod tests {
             match_term: Some("cade"),
             today: "2026-05-06",
             hidden_keys: &[],
+            subtask_progress: None,
         };
         let line = build_line(&task, opts, &MUTED);
         let highlight_bg = MUTED.matched;
@@ -447,6 +464,7 @@ mod tests {
             match_term: None,
             today: "2026-05-06",
             hidden_keys: hidden,
+            subtask_progress: None,
         };
         let line = build_line(&task, opts, &MUTED);
         line.spans
@@ -514,6 +532,7 @@ mod tests {
             match_term: None,
             today: "2026-05-06",
             hidden_keys: &[],
+            subtask_progress: None,
         };
         let line = build_line(&task, opts, &MUTED);
         let url_span = line
@@ -545,6 +564,7 @@ mod tests {
             match_term: None,
             today: "2026-05-06",
             hidden_keys: &[],
+            subtask_progress: None,
         };
         let line = build_line(&task, opts, &MUTED);
         let url_span = line

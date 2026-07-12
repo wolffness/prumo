@@ -17,6 +17,7 @@ pub mod recurrence;
 pub mod sample;
 pub mod search;
 pub mod serve;
+pub mod subtasks;
 pub mod theme;
 pub mod threshold;
 pub mod todo;

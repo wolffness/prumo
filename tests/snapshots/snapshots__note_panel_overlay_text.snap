@@ -28,7 +28,7 @@ expression: buffer_to_text(&buf)
                     │                                                          │                    
                     │                                                          │                    
                     │                                                          │                    
-                    │ i edit · o editor · Ctrl-S save · Esc/q close (saves)    │                    
+                    │ i edit · Space toggle · n subtask · o editor · Esc/q clos│                    
                     └──────────────────────────────────────────────────────────┘                    
                                                                                                     
                                                                                                     

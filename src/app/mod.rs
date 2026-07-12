@@ -171,6 +171,13 @@ pub struct App {
     /// clicks against these and opens the path with the system opener.
     /// Cleared alongside `link_targets` at the start of every frame.
     pub(crate) click_targets: std::cell::RefCell<Vec<(ratatui::layout::Rect, PathBuf)>>,
+    /// Subtask-progress cache keyed by note path: `(mtime, (done, total))`.
+    /// Renderers query per visible row every frame; the mtime check keeps
+    /// this to one cheap metadata stat per row instead of a full read.
+    #[allow(clippy::type_complexity)]
+    pub(crate) subtask_cache: std::cell::RefCell<
+        std::collections::HashMap<PathBuf, (std::time::SystemTime, Option<(usize, usize)>)>,
+    >,
     /// Theme index captured when the theme picker opened, so cancel
     /// can restore it.
     theme_pick_orig: usize,
@@ -237,6 +244,7 @@ impl App {
             note_panel: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
             click_targets: std::cell::RefCell::new(Vec::new()),
+            subtask_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             theme_pick_orig: 0,
             week_start: WeekStart::Sunday,
         };
@@ -480,6 +488,26 @@ impl App {
     /// `click_targets`).
     pub fn register_click_target(&self, rect: ratatui::layout::Rect, path: PathBuf) {
         self.click_targets.borrow_mut().push((rect, path));
+    }
+
+    /// Subtask progress `(done, total)` for a task, from the checkboxes in
+    /// its linked note. `None` when the task has no note, the note has no
+    /// checkboxes, or the file is unreadable. Cached by note mtime.
+    pub fn subtask_progress(&self, task: &Task) -> Option<(usize, usize)> {
+        note::note_rel_from_raw(&task.raw)?;
+        let target = note::target_for_task(task, &self.notes_dir);
+        let mtime = std::fs::metadata(&target.path).ok()?.modified().ok()?;
+        let mut cache = self.subtask_cache.borrow_mut();
+        if let Some((cached_mtime, progress)) = cache.get(&target.path)
+            && *cached_mtime == mtime
+        {
+            return *progress;
+        }
+        let progress = std::fs::read_to_string(&target.path)
+            .ok()
+            .and_then(|body| crate::subtasks::progress(&body));
+        cache.insert(target.path, (mtime, progress));
+        progress
     }
 
     /// Path registered under the screen cell `(x, y)` this frame, if any.
