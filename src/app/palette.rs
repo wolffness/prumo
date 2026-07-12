@@ -79,7 +79,7 @@ pub const ENTRIES: &[PaletteEntry] = &[
     },
     PaletteEntry {
         label: "edit note in panel",
-        keys: "N",
+        keys: "m",
         action: Action::OpenNotePanel,
     },
     PaletteEntry {

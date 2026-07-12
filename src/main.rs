@@ -1061,7 +1061,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('i') => Action::BeginEditInsert,
         KeyCode::Char('o') => Action::OpenNote,
         KeyCode::Char('O') => Action::CreateOrOpenNote,
-        KeyCode::Char('N') => Action::OpenNotePanel,
+        KeyCode::Char('m') | KeyCode::Char('N') => Action::OpenNotePanel,
         KeyCode::Char('t') => Action::BeginAttach,
         KeyCode::Enter => Action::OpenAttachments,
         KeyCode::Char('x') => Action::ToggleComplete,

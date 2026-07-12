@@ -420,7 +420,7 @@ The modal keys below apply in Normal mode:
 | `H` | toggle showing done tasks in the main list |
 | `o` | open the current task's existing `note:<path>` in `$VISUAL` / `$EDITOR` |
 | `O` | create the current task's note if needed, then open it |
-| `N` | open the note in an in-app panel (view + edit, saves on close) |
+| `m` / `N` | open the note in an in-app panel (view + edit, saves on close) |
 | `t` | attach a file: drag it onto the prompt or type a path (copied to `assets/`) |
 | `Enter` | open the current task's `at:` attachments with the system opener |
 

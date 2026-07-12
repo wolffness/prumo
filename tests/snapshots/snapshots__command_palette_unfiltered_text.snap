@@ -23,7 +23,7 @@ expression: buffer_to_text(&buf)
                     │   copy body to clipboard                              yb │                    
                     │   open task note                                       o │                    
                     │   create or open task note                             O │                    
-                    │   edit note in panel                                   N │                    
+                    │   edit note in panel                                   m │                    
                     │   attach file to task                                  t │                    
                     │   open task attachments                            Enter │                    
                     │  ↑↓ / Ctrl-N/P navigate · Enter run · Esc cancel         │                    

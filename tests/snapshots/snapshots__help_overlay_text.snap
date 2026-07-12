@@ -24,7 +24,7 @@ expression: buffer_to_text(&buf)
      │    yy                copy line to clipboard    : / Ctrl-P        command palette       │     
      │    yb                copy body only            s                 share capture QR      │     
      │    u                 undo                      ? / ,             help / settings       │     
-     │    N                 note panel (in-app)       q                 quit                  │     
+     │    m / N             note panel (in-app)       q                 quit                  │     
      │    t                 attach file                                                       │     
      │    Enter             open attachments                                                  │     
      │────────────────────────────────────────────────────────────────────────────────────────│     
