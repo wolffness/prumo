@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Package tuxedo as a macOS .app bundle (dist/Tuxedo.app).
+# Package tuxedo as a macOS .app bundle and install it to /Applications.
 #
 # The bundle wraps the release binary in a launcher that opens it in a
 # dedicated Terminal window, so tuxedo gets a Dock icon, Spotlight entry,
@@ -19,6 +19,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp target/release/tuxedo "$APP/Contents/Resources/tuxedo"
+cp packaging/tuxedo.icns "$APP/Contents/Resources/tuxedo.icns"
 
 cat > "$APP/Contents/MacOS/tuxedo-launcher" <<'LAUNCHER'
 #!/bin/zsh
@@ -100,6 +101,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>tuxedo-launcher</string>
+    <key>CFBundleIconFile</key>
+    <string>tuxedo</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
     <key>NSHighResolutionCapable</key>
@@ -108,5 +111,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "Bundle created: $APP"
-echo "Install with:   cp -R $APP /Applications/"
+# Install to /Applications and drop the staging copy so only one Tuxedo.app
+# exists on the machine (a stray dist copy kept showing up in Finder search).
+rm -rf /Applications/Tuxedo.app
+cp -R "$APP" /Applications/
+rm -rf "$APP"
+touch /Applications/Tuxedo.app
+echo "Installed: /Applications/Tuxedo.app"
