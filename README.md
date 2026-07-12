@@ -57,6 +57,10 @@ is fork-only; the upstream docs that follow still apply.
   panel from any app; entries land in the sibling `inbox.txt` and flow into
   the list through the existing inbox drain, natural language included.
 
+| Subtasks: amber `[2/4]` badge in the list, progress bar + clickable checkboxes in DETAIL | The in-app note panel (`m`) over the same task |
+| --- | --- |
+| ![fork subtasks](docs/screenshots/fork-subtasks.svg) | ![fork note panel](docs/screenshots/fork-note-panel.svg) |
+
 ## Highlights
 
 - **Pure todo.txt.** Reads and writes the [standard format](https://github.com/todotxt/todo.txt) — every line is plain text you can edit with anything else.

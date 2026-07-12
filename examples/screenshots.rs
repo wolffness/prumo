@@ -95,6 +95,56 @@ fn main() -> std::io::Result<()> {
         save(&app, &out.join(format!("theme-{slug}.svg")))?;
     }
 
+    // 8. Fork scenes: task with a note (subtasks + amber progress) and an
+    // attachment, shown in the DETAIL pane…
+    let base = PathBuf::from("/tmp/tuxedo-screenshots-fork");
+    let notes = base.join("notes");
+    let assets = base.join("assets");
+    fs::create_dir_all(&notes)?;
+    fs::create_dir_all(&assets)?;
+    fs::write(
+        notes.join("campanha.md"),
+        concat!(
+            "# Briefing\n\n",
+            "Alinhar peças da campanha de julho.\n\n",
+            "- [x] briefing com o cliente\n",
+            "- [x] rascunho das peças\n",
+            "- [ ] revisar orçamento\n",
+            "- [ ] agendar posts\n\n",
+            "> aprovar até sexta\n",
+        ),
+    )?;
+    fs::write(assets.join("orcamento.pdf"), b"pdf")?;
+    let todo = base.join("todo.txt");
+    let raw = concat!(
+        "(A) Campanha de julho +cliente due:2026-05-08 note:campanha.md at:orcamento.pdf\n",
+        "Enviar proposta +cliente due:2026-05-07\n",
+        "Backup semanal rec:+1w due:2026-05-09\n",
+    );
+    fs::write(&todo, raw)?;
+    let make_fork = || {
+        let mut app = App::new(
+            todo.clone(),
+            raw.to_string(),
+            "2026-05-06".to_string(),
+            Config {
+                notes_dir: Some(notes.to_string_lossy().into_owned()),
+                // Matches the fork's recommended config: metadata tokens
+                // hidden from rows, so the amber progress badge stands out.
+                hidden_keys: vec!["note".into(), "at".into()],
+                ..Config::default()
+            },
+        );
+        app.prefs.density = Density::Compact;
+        app
+    };
+    save(&make_fork(), &out.join("fork-subtasks.svg"))?;
+
+    // …and the in-app note panel open over it.
+    let mut app = make_fork();
+    app.open_note_panel_for_current();
+    save(&app, &out.join("fork-note-panel.svg"))?;
+
     println!("wrote screenshots to {}", out.display());
     Ok(())
 }
