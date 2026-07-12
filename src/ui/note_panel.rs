@@ -42,6 +42,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     // chunking (not word wrap) keeps the cursor mapping trivial: display
     // row = col / w, x = col % w — no reflow bookkeeping.
     let wrap_w = usize::from(body_area.width).max(8);
+    // Publish the wrap width so vertical cursor motion (handle_note) can
+    // step through the same visual rows the renderer draws.
+    panel.wrap_w.set(wrap_w);
     let mut lines: Vec<Line> = Vec::new();
     let mut cursor_display_row = 0usize;
     for (i, raw) in panel.lines.iter().enumerate() {

@@ -1539,6 +1539,49 @@ mod tests {
         assert!(src.exists());
     }
 
+    /// Arrow keys must move the note-panel cursor in both view and insert
+    /// modes, through the real key dispatcher.
+    #[test]
+    fn note_panel_arrow_keys_move_cursor() {
+        let dir = std::env::temp_dir().join(format!(
+            "tuxedo-note-arrows-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(dir.join("notes")).expect("mkdir");
+        std::fs::write(dir.join("notes/n.md"), "first line\nsecond\nthird\n").expect("seed note");
+        let todo = dir.join("todo.txt");
+        let raw = "Task with note note:n.md\n";
+        std::fs::write(&todo, raw).expect("seed todo");
+        let cfg = Config {
+            notes_dir: Some(dir.join("notes").to_string_lossy().into_owned()),
+            ..Config::default()
+        };
+        let mut app = App::new(todo, raw.to_string(), "2026-05-06".into(), cfg);
+        let kb = KeyBindings::default();
+
+        handle_key(&mut app, key('m'), &kb);
+        assert_eq!(app.mode, Mode::Note);
+        let arrow = |code| KeyEvent::new(code, KeyModifiers::NONE);
+
+        // View mode: Down/Up/Right/Left.
+        handle_key(&mut app, arrow(KeyCode::Down), &kb);
+        assert_eq!(app.note_panel.as_ref().map(|p| p.row), Some(1));
+        handle_key(&mut app, arrow(KeyCode::Right), &kb);
+        assert_eq!(app.note_panel.as_ref().map(|p| p.col), Some(1));
+        handle_key(&mut app, arrow(KeyCode::Up), &kb);
+        assert_eq!(app.note_panel.as_ref().map(|p| p.row), Some(0));
+        handle_key(&mut app, arrow(KeyCode::Left), &kb);
+        assert_eq!(app.note_panel.as_ref().map(|p| p.col), Some(0));
+
+        // Insert mode: same keys.
+        handle_key(&mut app, key('i'), &kb);
+        handle_key(&mut app, arrow(KeyCode::Down), &kb);
+        handle_key(&mut app, arrow(KeyCode::Right), &kb);
+        let p = app.note_panel.as_ref().expect("panel");
+        assert_eq!((p.row, p.col), (1, 1));
+    }
+
     /// Enter on a task without attachments flashes a hint instead of
     /// spawning an opener.
     #[test]

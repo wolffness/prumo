@@ -23,6 +23,11 @@ pub struct NotePanel {
     /// Vertical scroll offset, updated at render time (same pattern as
     /// `App::view_scroll`).
     pub scroll: Cell<u16>,
+    /// Display width the renderer wraps lines at, published at render time
+    /// so vertical cursor motion can step through *visual* rows of a long
+    /// wrapped line instead of jumping whole buffer lines. `usize::MAX`
+    /// (the pre-first-render default) degrades to plain line movement.
+    pub wrap_w: Cell<usize>,
 }
 
 impl NotePanel {
@@ -41,6 +46,7 @@ impl NotePanel {
             insert: false,
             dirty: false,
             scroll: Cell::new(0),
+            wrap_w: Cell::new(usize::MAX),
         })
     }
 
@@ -72,13 +78,37 @@ impl NotePanel {
         self.col = self.col.min(max);
     }
 
+    /// Move up one *visual* row: within a wrapped line first, then into the
+    /// last visual row of the previous buffer line.
     pub fn move_up(&mut self) {
-        self.row = self.row.saturating_sub(1);
+        let w = self.wrap_w.get().max(1);
+        if self.col >= w {
+            self.col -= w;
+        } else if self.row > 0 {
+            self.row -= 1;
+            let plen = self.cur_line_len();
+            let last_start = if plen == 0 {
+                0
+            } else {
+                ((plen - 1) / w) * w
+            };
+            self.col = (last_start + self.col).min(plen);
+        }
         self.clamp_col();
     }
 
+    /// Move down one *visual* row (see `move_up`).
     pub fn move_down(&mut self) {
-        self.row = (self.row + 1).min(self.lines.len() - 1);
+        let w = self.wrap_w.get().max(1);
+        let len = self.cur_line_len();
+        let cur_chunk = self.col / w;
+        let last_chunk = if len == 0 { 0 } else { (len - 1) / w };
+        if cur_chunk < last_chunk {
+            self.col = (self.col + w).min(len);
+        } else if self.row + 1 < self.lines.len() {
+            self.row += 1;
+            self.col %= w;
+        }
         self.clamp_col();
     }
 
@@ -316,6 +346,7 @@ mod tests {
             insert: true,
             dirty: false,
             scroll: Cell::new(0),
+            wrap_w: Cell::new(usize::MAX),
         }
     }
 
@@ -372,6 +403,35 @@ mod tests {
         p.backspace();
         assert_eq!(p.lines, vec!["ab"]);
         assert!(!p.dirty);
+    }
+
+    #[test]
+    fn vertical_motion_steps_through_visual_rows_of_wrapped_line() {
+        // One 25-char line wrapped at 10 → visual rows at cols 0/10/20.
+        let mut p = panel("abcdefghijklmnopqrstuvwxy");
+        p.wrap_w.set(10);
+        p.col = 3;
+        p.move_down();
+        assert_eq!(p.col, 13, "down moves one visual row within the line");
+        p.move_down();
+        assert_eq!(p.col, 23);
+        p.move_down();
+        assert_eq!(p.col, 23, "bottom visual row of last line: no-op");
+        p.move_up();
+        assert_eq!(p.col, 13);
+        p.move_up();
+        assert_eq!(p.col, 3);
+    }
+
+    #[test]
+    fn vertical_motion_crosses_buffer_lines_via_visual_rows() {
+        let mut p = panel("abcdefghijklmno\nshort");
+        p.wrap_w.set(10);
+        p.col = 12; // second visual row of line 0
+        p.move_down();
+        assert_eq!((p.row, p.col), (1, 2), "into the next buffer line");
+        p.move_up();
+        assert_eq!((p.row, p.col), (0, 12), "back to the last visual row");
     }
 
     #[test]
