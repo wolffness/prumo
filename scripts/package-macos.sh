@@ -65,6 +65,13 @@ tell application "iTerm2"
     end try
 end tell
 EOF
+    # Stay alive while tuxedo runs so the Dock shows the app as open
+    # (otherwise the launcher exits in milliseconds and the icon vanishes
+    # before it can be pinned).
+    sleep 3
+    while pgrep -f "$BIN" >/dev/null 2>&1; do
+        sleep 5
+    done
     exit 0
 fi
 
@@ -78,6 +85,10 @@ tell application "Terminal"
     end if
 end tell
 EOF
+sleep 3
+while pgrep -f "$BIN" >/dev/null 2>&1; do
+    sleep 5
+done
 LAUNCHER
 chmod +x "$APP/Contents/MacOS/tuxedo-launcher"
 
