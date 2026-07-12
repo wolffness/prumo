@@ -415,32 +415,61 @@ fn handle_note(app: &mut App, key: KeyEvent) {
             }
             return;
         }
+        let shift = key.modifiers.contains(KeyModifiers::SHIFT);
         match key.code {
             KeyCode::Esc => {
+                panel.sel_anchor = None;
                 panel.insert = false;
                 panel.clamp_col();
             }
-            KeyCode::Enter => panel.newline(),
+            KeyCode::Enter => {
+                panel.delete_selection();
+                panel.newline();
+            }
             KeyCode::Backspace if alt => panel.delete_word_back(),
-            KeyCode::Backspace => panel.backspace(),
-            KeyCode::Delete => panel.delete_forward(),
+            KeyCode::Backspace if !panel.delete_selection() => panel.backspace(),
+            KeyCode::Backspace => {}
+            KeyCode::Delete if !panel.delete_selection() => panel.delete_forward(),
+            KeyCode::Delete => {}
             KeyCode::Left if alt => panel.word_left(),
             KeyCode::Right if alt => panel.word_right(),
-            KeyCode::Left => panel.move_left(),
-            KeyCode::Right => panel.move_right(),
-            KeyCode::Up => panel.move_up(),
-            KeyCode::Down => panel.move_down(),
-            KeyCode::Home => panel.line_start(),
-            KeyCode::End => panel.line_end(),
+            KeyCode::Left => {
+                panel.track_selection(shift);
+                panel.move_left();
+            }
+            KeyCode::Right => {
+                panel.track_selection(shift);
+                panel.move_right();
+            }
+            KeyCode::Up => {
+                panel.track_selection(shift);
+                panel.move_up();
+            }
+            KeyCode::Down => {
+                panel.track_selection(shift);
+                panel.move_down();
+            }
+            KeyCode::Home => {
+                panel.track_selection(shift);
+                panel.line_start();
+            }
+            KeyCode::End => {
+                panel.track_selection(shift);
+                panel.line_end();
+            }
             KeyCode::PageUp => panel.page_up(NOTE_PAGE_ROWS),
             KeyCode::PageDown => panel.page_down(NOTE_PAGE_ROWS),
             KeyCode::Char('b') if alt => panel.word_left(),
             KeyCode::Char('f') if alt => panel.word_right(),
             KeyCode::Tab => {
+                panel.delete_selection();
                 panel.insert_char(' ');
                 panel.insert_char(' ');
             }
-            KeyCode::Char(c) => panel.insert_char(c),
+            KeyCode::Char(c) => {
+                panel.delete_selection();
+                panel.insert_char(c);
+            }
             _ => {}
         }
         return;
@@ -462,18 +491,39 @@ fn handle_note(app: &mut App, key: KeyEvent) {
             panel.insert = true;
             panel.line_start();
         }
-        KeyCode::Char('j') | KeyCode::Down => panel.move_down(),
-        KeyCode::Char('k') | KeyCode::Up => panel.move_up(),
-        KeyCode::Char('h') | KeyCode::Left => panel.move_left(),
-        KeyCode::Char('l') | KeyCode::Right => panel.move_right(),
+        KeyCode::Char('j') | KeyCode::Down => {
+            panel.track_selection(key.modifiers.contains(KeyModifiers::SHIFT));
+            panel.move_down();
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            panel.track_selection(key.modifiers.contains(KeyModifiers::SHIFT));
+            panel.move_up();
+        }
+        KeyCode::Char('h') | KeyCode::Left => {
+            panel.track_selection(key.modifiers.contains(KeyModifiers::SHIFT));
+            panel.move_left();
+        }
+        KeyCode::Char('l') | KeyCode::Right => {
+            panel.track_selection(key.modifiers.contains(KeyModifiers::SHIFT));
+            panel.move_right();
+        }
         KeyCode::Char('w') => panel.word_right(),
         KeyCode::Char('b') => panel.word_left(),
-        KeyCode::Char('0') | KeyCode::Home => panel.line_start(),
+        KeyCode::Char('0') | KeyCode::Home => {
+            panel.track_selection(key.modifiers.contains(KeyModifiers::SHIFT));
+            panel.line_start();
+        }
         KeyCode::Char('$') | KeyCode::End => {
+            panel.track_selection(key.modifiers.contains(KeyModifiers::SHIFT));
             panel.line_end();
             panel.clamp_col();
         }
-        KeyCode::Char('x') | KeyCode::Delete => panel.delete_char_at_cursor(),
+        KeyCode::Char('x') | KeyCode::Delete | KeyCode::Backspace
+            if !panel.delete_selection() =>
+        {
+            panel.delete_char_at_cursor();
+        }
+        KeyCode::Char('x') | KeyCode::Delete | KeyCode::Backspace => {}
         // 'dd' chord, mirroring the task list.
         KeyCode::Char('d') if app.chord.toggle('d') => panel.delete_line(),
         KeyCode::Char('g') => panel.move_top(),

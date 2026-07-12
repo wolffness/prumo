@@ -28,6 +28,10 @@ pub struct NotePanel {
     /// wrapped line instead of jumping whole buffer lines. `usize::MAX`
     /// (the pre-first-render default) degrades to plain line movement.
     pub wrap_w: Cell<usize>,
+    /// Selection anchor (`row`, `col` in chars), set when Shift+movement
+    /// starts extending a selection. The selected region spans from the
+    /// anchor to the cursor; `None` means no active selection.
+    pub sel_anchor: Option<(usize, usize)>,
 }
 
 impl NotePanel {
@@ -47,7 +51,66 @@ impl NotePanel {
             dirty: false,
             scroll: Cell::new(0),
             wrap_w: Cell::new(usize::MAX),
+            sel_anchor: None,
         })
+    }
+
+    /// Selection bookkeeping for a movement key: Shift extends (anchoring at
+    /// the current position on the first shifted move); unshifted movement
+    /// drops the selection.
+    pub fn track_selection(&mut self, shift: bool) {
+        if shift {
+            if self.sel_anchor.is_none() {
+                self.clamp_col();
+                self.sel_anchor = Some((self.row, self.col));
+            }
+        } else {
+            self.sel_anchor = None;
+        }
+    }
+
+    /// Ordered selection bounds `((row, col), (row, col))`, start < end, end
+    /// exclusive. `None` when there is no selection or it is empty.
+    pub fn selection_range(&self) -> Option<((usize, usize), (usize, usize))> {
+        let anchor = self.sel_anchor?;
+        let cursor = (self.row, self.col.min(self.lines[self.row].chars().count()));
+        match anchor.cmp(&cursor) {
+            std::cmp::Ordering::Less => Some((anchor, cursor)),
+            std::cmp::Ordering::Greater => Some((cursor, anchor)),
+            std::cmp::Ordering::Equal => None,
+        }
+    }
+
+    /// Remove the selected region, leaving the cursor at its start. Returns
+    /// false (no-op) when nothing is selected.
+    pub fn delete_selection(&mut self) -> bool {
+        let Some(((r1, c1), (r2, c2))) = self.selection_range() else {
+            self.sel_anchor = None;
+            return false;
+        };
+        let byte = |line: &str, col: usize| {
+            line.char_indices()
+                .nth(col)
+                .map_or(line.len(), |(i, _)| i)
+        };
+        if r1 == r2 {
+            let (s, e) = (byte(&self.lines[r1], c1), byte(&self.lines[r1], c2));
+            self.lines[r1].replace_range(s..e, "");
+        } else {
+            let tail = {
+                let end_line = &self.lines[r2];
+                end_line[byte(end_line, c2)..].to_string()
+            };
+            let s = byte(&self.lines[r1], c1);
+            self.lines[r1].truncate(s);
+            self.lines[r1].push_str(&tail);
+            self.lines.drain(r1 + 1..=r2);
+        }
+        self.row = r1;
+        self.col = c1;
+        self.sel_anchor = None;
+        self.dirty = true;
+        true
     }
 
     pub fn save(&mut self) -> std::io::Result<()> {
@@ -347,6 +410,7 @@ mod tests {
             dirty: false,
             scroll: Cell::new(0),
             wrap_w: Cell::new(usize::MAX),
+            sel_anchor: None,
         }
     }
 
@@ -432,6 +496,52 @@ mod tests {
         assert_eq!((p.row, p.col), (1, 2), "into the next buffer line");
         p.move_up();
         assert_eq!((p.row, p.col), (0, 12), "back to the last visual row");
+    }
+
+    #[test]
+    fn shift_selection_deletes_within_line() {
+        let mut p = panel("hello world");
+        // Anchor at 0, extend to 6 ("hello ").
+        p.track_selection(true);
+        p.col = 6;
+        assert!(p.delete_selection());
+        assert_eq!(p.lines[0], "world");
+        assert_eq!((p.row, p.col), (0, 0));
+        assert!(p.sel_anchor.is_none());
+    }
+
+    #[test]
+    fn shift_selection_deletes_across_lines() {
+        let mut p = panel("first line\nsecond\nthird");
+        p.col = 6; // after "first "
+        p.track_selection(true);
+        p.row = 2;
+        p.col = 2; // into "third"
+        assert!(p.delete_selection());
+        assert_eq!(p.lines, vec!["first ird"]);
+        assert_eq!((p.row, p.col), (0, 6));
+    }
+
+    #[test]
+    fn unshifted_movement_clears_selection() {
+        let mut p = panel("abc");
+        p.track_selection(true);
+        p.col = 2;
+        assert!(p.selection_range().is_some());
+        p.track_selection(false);
+        assert!(p.selection_range().is_none());
+        assert!(!p.delete_selection(), "nothing selected: no-op");
+        assert_eq!(p.lines[0], "abc");
+    }
+
+    #[test]
+    fn typing_replaces_selection() {
+        let mut p = panel("abcdef");
+        p.track_selection(true);
+        p.col = 4;
+        p.delete_selection();
+        p.insert_char('X');
+        assert_eq!(p.lines[0], "Xef");
     }
 
     #[test]

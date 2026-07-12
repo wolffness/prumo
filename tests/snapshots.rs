@@ -365,6 +365,7 @@ fn note_panel_overlay() {
         dirty: true,
         scroll: std::cell::Cell::new(0),
         wrap_w: std::cell::Cell::new(usize::MAX),
+        sel_anchor: None,
     });
     app.mode = Mode::Note;
     snapshot_app("note_panel_overlay", &app);

@@ -45,18 +45,38 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     // Publish the wrap width so vertical cursor motion (handle_note) can
     // step through the same visual rows the renderer draws.
     panel.wrap_w.set(wrap_w);
+    let sel = panel.selection_range();
     let mut lines: Vec<Line> = Vec::new();
     let mut cursor_display_row = 0usize;
     for (i, raw) in panel.lines.iter().enumerate() {
         let chunks = chunk_chars(raw, wrap_w);
+        let cursor_chunk = (panel.col / wrap_w).min(chunks.len() - 1);
         if i == panel.row {
-            let idx = (panel.col / wrap_w).min(chunks.len() - 1);
-            cursor_display_row = lines.len() + idx;
+            cursor_display_row = lines.len() + cursor_chunk;
         }
+        let line_len = raw.chars().count();
         for (ci, chunk) in chunks.iter().enumerate() {
-            // Markdown line styling keys off the line head; continuations
-            // render as plain text.
-            let mut line = if ci == 0 {
+            let chunk_start = ci * wrap_w;
+            let chunk_len = chunk.chars().count();
+            // Selection overlap with this chunk, in chunk-local char coords.
+            let sel_local = sel.and_then(|((r1, c1), (r2, c2))| {
+                if i < r1 || i > r2 {
+                    return None;
+                }
+                let s = if i == r1 { c1 } else { 0 };
+                let e = if i == r2 { c2 } else { line_len };
+                let s = s.max(chunk_start);
+                let e = e.min(chunk_start + chunk_len);
+                (s < e).then(|| (s - chunk_start, e - chunk_start))
+            });
+            let cursor_local = (i == panel.row && ci == cursor_chunk)
+                .then(|| panel.col - cursor_chunk * wrap_w);
+            // Chunks carrying the cursor or a selection get char-precise
+            // spans (dropping Markdown coloring there); plain chunks keep
+            // the line-level Markdown styling.
+            let line = if sel_local.is_some() || cursor_local.is_some() {
+                chunk_line(theme, chunk, sel_local, cursor_local)
+            } else if ci == 0 {
                 markdown_line(theme, chunk)
             } else {
                 Line::from(Span::styled(
@@ -64,10 +84,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                     Style::default().fg(theme.fg),
                 ))
             };
-            if i == panel.row && ci == (panel.col / wrap_w).min(chunks.len() - 1) {
-                let x = panel.col - ((panel.col / wrap_w).min(chunks.len() - 1)) * wrap_w;
-                line = apply_cursor_at(theme, line, chunk, x);
-            }
             lines.push(line);
         }
     }
@@ -147,40 +163,50 @@ fn chunk_chars(s: &str, w: usize) -> Vec<String> {
     chars.chunks(w).map(|c| c.iter().collect()).collect()
 }
 
-/// Overlay the cursor cell at character column `x` of a display chunk. In
-/// insert mode the cursor may sit one past the end of the chunk (append
-/// position), rendered as a highlighted space.
-fn apply_cursor_at(theme: &Theme, line: Line<'_>, chunk: &str, x: usize) -> Line<'static> {
-    let col = x.min(chunk.chars().count());
+/// Build a display chunk with char-precise styling: optional selection
+/// background over `sel` (chunk-local, end exclusive) and an optional cursor
+/// cell at `cursor` (may sit one past the end — the insert append position —
+/// rendered as a highlighted space).
+fn chunk_line(
+    theme: &Theme,
+    chunk: &str,
+    sel: Option<(usize, usize)>,
+    cursor: Option<usize>,
+) -> Line<'static> {
+    let base = Style::default().fg(theme.fg);
+    let sel_style = Style::default().fg(theme.fg).bg(theme.selection);
     let cursor_style = Style::default()
         .fg(theme.bg)
         .bg(theme.cursor)
         .add_modifier(Modifier::BOLD);
 
-    let start = chunk
-        .char_indices()
-        .nth(col)
-        .map_or(chunk.len(), |(i, _)| i);
-    let end = chunk[start..]
-        .char_indices()
-        .nth(1)
-        .map_or(chunk.len(), |(i, _)| start + i);
-
-    // Preserve the line-level style by reusing the first span's style for
-    // the surrounding text (bullet-marker coloring is lost on the cursor
-    // row — an acceptable trade for a simple, correct cursor).
-    let base = line.spans.first().map_or(Style::default(), |s| s.style);
-    let before = chunk[..start].to_string();
-    let cursor_txt = if start == chunk.len() {
-        " ".to_string()
-    } else {
-        chunk[start..end].to_string()
-    };
-    let after = chunk.get(end..).unwrap_or("").to_string();
-
-    Line::from(vec![
-        Span::styled(before, base),
-        Span::styled(cursor_txt, cursor_style),
-        Span::styled(after, base),
-    ])
+    let chars: Vec<char> = chunk.chars().collect();
+    let cursor = cursor.map(|c| c.min(chars.len()));
+    let mut spans: Vec<Span> = Vec::new();
+    let mut buf = String::new();
+    let mut cur_style = base;
+    for idx in 0..=chars.len() {
+        let style = if cursor == Some(idx) {
+            cursor_style
+        } else if sel.is_some_and(|(s, e)| idx >= s && idx < e) {
+            sel_style
+        } else {
+            base
+        };
+        let ch = match chars.get(idx) {
+            Some(c) => *c,
+            // Append position: render a space cell only under the cursor.
+            None if cursor == Some(idx) => ' ',
+            None => break,
+        };
+        if style != cur_style && !buf.is_empty() {
+            spans.push(Span::styled(std::mem::take(&mut buf), cur_style));
+        }
+        cur_style = style;
+        buf.push(ch);
+    }
+    if !buf.is_empty() {
+        spans.push(Span::styled(buf, cur_style));
+    }
+    Line::from(spans)
 }
