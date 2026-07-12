@@ -24,10 +24,16 @@ cat > "$APP/Contents/MacOS/tuxedo-launcher" <<'LAUNCHER'
 #!/bin/zsh
 set -euo pipefail
 BIN="$(cd "$(dirname "$0")/../Resources" && pwd)/tuxedo"
+# A "Tuxedo" Terminal profile (font + colors) is applied when present;
+# without one the window keeps the user's default profile. The profile is
+# created on demand so a fresh machine still launches fine.
 /usr/bin/osascript <<EOF
 tell application "Terminal"
     activate
-    do script "cd \"\$HOME\"; clear; exec '$BIN'"
+    set t to do script "cd \"\$HOME\"; clear; exec '$BIN'"
+    if exists settings set "Tuxedo" then
+        set current settings of t to settings set "Tuxedo"
+    end if
 end tell
 EOF
 LAUNCHER

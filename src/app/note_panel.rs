@@ -135,6 +135,167 @@ impl NotePanel {
             self.dirty = true;
         }
     }
+
+    /// Forward delete: remove the char under the cursor, joining the next
+    /// line up when the cursor sits at end-of-line.
+    pub fn delete_forward(&mut self) {
+        self.clamp_col();
+        if self.col < self.cur_line_len() {
+            let at = self.byte_at(self.col);
+            self.lines[self.row].remove(at);
+            self.dirty = true;
+        } else if self.row + 1 < self.lines.len() {
+            let next = self.lines.remove(self.row + 1);
+            self.lines[self.row].push_str(&next);
+            self.dirty = true;
+        }
+    }
+
+    pub fn line_start(&mut self) {
+        self.col = 0;
+    }
+
+    pub fn line_end(&mut self) {
+        self.col = self.cur_line_len();
+        self.clamp_col();
+    }
+
+    /// Char classes for word motion: whitespace / alphanumeric / other.
+    fn char_class(c: char) -> u8 {
+        if c.is_whitespace() {
+            0
+        } else if c.is_alphanumeric() || c == '_' {
+            1
+        } else {
+            2
+        }
+    }
+
+    /// Move to the start of the previous word.
+    pub fn word_left(&mut self) {
+        self.clamp_col();
+        if self.col == 0 {
+            if self.row > 0 {
+                self.row -= 1;
+                self.col = self.cur_line_len();
+                self.clamp_col();
+            }
+            return;
+        }
+        let chars: Vec<char> = self.lines[self.row].chars().collect();
+        let mut i = self.col;
+        while i > 0 && chars[i - 1].is_whitespace() {
+            i -= 1;
+        }
+        if i > 0 {
+            let class = Self::char_class(chars[i - 1]);
+            while i > 0 && Self::char_class(chars[i - 1]) == class {
+                i -= 1;
+            }
+        }
+        self.col = i;
+    }
+
+    /// Move past the end of the current/next word.
+    pub fn word_right(&mut self) {
+        self.clamp_col();
+        let chars: Vec<char> = self.lines[self.row].chars().collect();
+        if self.col >= chars.len() {
+            if self.row + 1 < self.lines.len() {
+                self.row += 1;
+                self.col = 0;
+            }
+            return;
+        }
+        let mut i = self.col;
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        if i < chars.len() {
+            let class = Self::char_class(chars[i]);
+            while i < chars.len() && Self::char_class(chars[i]) == class {
+                i += 1;
+            }
+        }
+        self.col = i;
+        self.clamp_col();
+    }
+
+    /// Delete from the previous word boundary to the cursor (Ctrl+W).
+    pub fn delete_word_back(&mut self) {
+        self.clamp_col();
+        let (row, end) = (self.row, self.col);
+        self.word_left();
+        if self.row != row {
+            // Cursor was at col 0: word_left crossed to the previous row.
+            // Restore — Ctrl+W deletes within a line only.
+            self.row = row;
+            self.col = end;
+            return;
+        }
+        let start = self.col;
+        if end > start {
+            let sb = self.byte_at(start);
+            let eb = self.byte_at(end);
+            self.lines[self.row].replace_range(sb..eb, "");
+            self.dirty = true;
+        }
+    }
+
+    /// Delete from the cursor to end of line (Ctrl+K). On an already-empty
+    /// tail, joins the next line (Emacs behavior).
+    pub fn kill_to_end(&mut self) {
+        self.clamp_col();
+        if self.col < self.cur_line_len() {
+            let at = self.byte_at(self.col);
+            self.lines[self.row].truncate(at);
+            self.dirty = true;
+        } else {
+            self.delete_forward();
+        }
+    }
+
+    /// Delete from start of line to the cursor (Ctrl+U).
+    pub fn kill_to_start(&mut self) {
+        self.clamp_col();
+        if self.col > 0 {
+            let at = self.byte_at(self.col);
+            self.lines[self.row].replace_range(..at, "");
+            self.col = 0;
+            self.dirty = true;
+        }
+    }
+
+    /// Delete the whole current line (`dd`), keeping at least one line.
+    pub fn delete_line(&mut self) {
+        if self.lines.len() == 1 {
+            if !self.lines[0].is_empty() {
+                self.lines[0].clear();
+                self.dirty = true;
+            }
+        } else {
+            self.lines.remove(self.row);
+            self.row = self.row.min(self.lines.len() - 1);
+            self.dirty = true;
+        }
+        self.col = 0;
+    }
+
+    /// Delete the char under the cursor (`x` in view mode).
+    pub fn delete_char_at_cursor(&mut self) {
+        self.delete_forward();
+        self.clamp_col();
+    }
+
+    pub fn page_down(&mut self, rows: usize) {
+        self.row = (self.row + rows).min(self.lines.len() - 1);
+        self.clamp_col();
+    }
+
+    pub fn page_up(&mut self, rows: usize) {
+        self.row = self.row.saturating_sub(rows);
+        self.clamp_col();
+    }
 }
 
 #[cfg(test)]
@@ -211,6 +372,65 @@ mod tests {
         p.backspace();
         assert_eq!(p.lines, vec!["ab"]);
         assert!(!p.dirty);
+    }
+
+    #[test]
+    fn delete_forward_removes_char_and_joins_lines() {
+        let mut p = panel("ab\ncd");
+        p.col = 1;
+        p.delete_forward();
+        assert_eq!(p.lines[0], "a");
+        p.delete_forward(); // at end-of-line: joins next row up
+        assert_eq!(p.lines, vec!["acd"]);
+    }
+
+    #[test]
+    fn home_end_and_word_motion() {
+        let mut p = panel("foo bar-baz qux");
+        p.line_end();
+        assert_eq!(p.col, 15);
+        p.line_start();
+        assert_eq!(p.col, 0);
+        p.word_right();
+        assert_eq!(p.col, 3, "past 'foo'");
+        p.word_right();
+        assert_eq!(p.col, 7, "past 'bar'");
+        p.word_left();
+        assert_eq!(p.col, 4, "back to start of 'bar'");
+    }
+
+    #[test]
+    fn ctrl_w_deletes_word_within_line_only() {
+        let mut p = panel("hello world");
+        p.line_end();
+        p.delete_word_back();
+        assert_eq!(p.lines[0], "hello ");
+        p.col = 0;
+        let before = p.lines.clone();
+        p.delete_word_back(); // at col 0: no cross-line deletion
+        assert_eq!(p.lines, before);
+        assert_eq!((p.row, p.col), (0, 0));
+    }
+
+    #[test]
+    fn kill_to_end_and_start() {
+        let mut p = panel("abcdef");
+        p.col = 3;
+        p.kill_to_end();
+        assert_eq!(p.lines[0], "abc");
+        p.kill_to_start();
+        assert_eq!(p.lines[0], "");
+        assert_eq!(p.col, 0);
+    }
+
+    #[test]
+    fn delete_line_keeps_at_least_one_line() {
+        let mut p = panel("one\ntwo");
+        p.delete_line();
+        assert_eq!(p.lines, vec!["two"]);
+        p.delete_line();
+        assert_eq!(p.lines, vec![""]);
+        assert!(!p.lines.is_empty());
     }
 
     #[test]

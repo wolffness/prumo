@@ -1,0 +1,30 @@
+# Phosphor Green — monochrome CRT-style theme for tuxedo.
+# Every color is a brightness step of the same fluorescent green, like a
+# P1-phosphor terminal. Copy into ${XDG_CONFIG_HOME:-$HOME/.config}/tuxedo/themes/
+# and press T to select it.
+name = Phosphor Green
+bg = #020a02
+panel = #041204
+border = #0f3f0f
+fg = #33ff33
+dim = #1d8f1d
+accent = #66ff66
+cursor = #33ff33
+selection = #0c4f0c
+statusbar = #041204
+status_fg = #33ff33
+mode_fg = #020a02
+mode_bg = #33ff33
+pri_a = #aaffaa
+pri_b = #77ff77
+pri_c = #44ff44
+pri_d = #2adf2a
+pri_other = #1d8f1d
+project = #66ff66
+context = #2adf2a
+due = #77ff77
+overdue = #ccffcc
+today = #aaffaa
+done = #145f14
+selected = #0c4f0c
+matched = #aaffaa

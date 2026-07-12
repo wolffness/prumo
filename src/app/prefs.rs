@@ -155,7 +155,10 @@ impl Prefs {
         cfg.show_status_bar = Some(self.layout.status_bar);
         cfg.show_done = Some(self.show_done);
         cfg.show_future = Some(self.show_future);
-        cfg.hidden_keys = self.hidden_keys.clone();
+        // `hidden_keys` has no in-app toggle — the config file is its only
+        // editor. Keep the freshly-loaded disk value instead of echoing our
+        // in-memory copy, which may predate an external edit and would
+        // silently erase it on the next pref save.
         cfg.save()
     }
 }

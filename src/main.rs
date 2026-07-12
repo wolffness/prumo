@@ -396,27 +396,51 @@ fn handle_note(app: &mut App, key: KeyEvent) {
         return;
     }
 
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+
     if panel.insert {
+        if ctrl {
+            // Emacs-style editing chords, mirroring the draft editor.
+            match key.code {
+                KeyCode::Char('a') => panel.line_start(),
+                KeyCode::Char('e') => panel.line_end(),
+                KeyCode::Char('u') => panel.kill_to_start(),
+                KeyCode::Char('k') => panel.kill_to_end(),
+                KeyCode::Char('w') => panel.delete_word_back(),
+                KeyCode::Char('h') => panel.backspace(),
+                KeyCode::Char('d') => panel.delete_forward(),
+                // AltGr text falls through to the Char arm below.
+                KeyCode::Char(c) if alt => panel.insert_char(c),
+                _ => {}
+            }
+            return;
+        }
         match key.code {
             KeyCode::Esc => {
                 panel.insert = false;
                 panel.clamp_col();
             }
             KeyCode::Enter => panel.newline(),
+            KeyCode::Backspace if alt => panel.delete_word_back(),
             KeyCode::Backspace => panel.backspace(),
+            KeyCode::Delete => panel.delete_forward(),
+            KeyCode::Left if alt => panel.word_left(),
+            KeyCode::Right if alt => panel.word_right(),
             KeyCode::Left => panel.move_left(),
             KeyCode::Right => panel.move_right(),
             KeyCode::Up => panel.move_up(),
             KeyCode::Down => panel.move_down(),
+            KeyCode::Home => panel.line_start(),
+            KeyCode::End => panel.line_end(),
+            KeyCode::PageUp => panel.page_up(NOTE_PAGE_ROWS),
+            KeyCode::PageDown => panel.page_down(NOTE_PAGE_ROWS),
+            KeyCode::Char('b') if alt => panel.word_left(),
+            KeyCode::Char('f') if alt => panel.word_right(),
             KeyCode::Tab => {
                 panel.insert_char(' ');
                 panel.insert_char(' ');
             }
-            // Mirror handle_insert: swallow unmapped Ctrl chords but let
-            // AltGr (Ctrl+Alt) characters through.
-            KeyCode::Char(c) if !ctrl || key.modifiers.contains(KeyModifiers::ALT) => {
-                panel.insert_char(c);
-            }
+            KeyCode::Char(c) => panel.insert_char(c),
             _ => {}
         }
         return;
@@ -430,15 +454,38 @@ fn handle_note(app: &mut App, key: KeyEvent) {
             panel.insert = true;
             panel.move_right();
         }
+        KeyCode::Char('A') => {
+            panel.insert = true;
+            panel.line_end();
+        }
+        KeyCode::Char('I') => {
+            panel.insert = true;
+            panel.line_start();
+        }
         KeyCode::Char('j') | KeyCode::Down => panel.move_down(),
         KeyCode::Char('k') | KeyCode::Up => panel.move_up(),
         KeyCode::Char('h') | KeyCode::Left => panel.move_left(),
         KeyCode::Char('l') | KeyCode::Right => panel.move_right(),
+        KeyCode::Char('w') => panel.word_right(),
+        KeyCode::Char('b') => panel.word_left(),
+        KeyCode::Char('0') | KeyCode::Home => panel.line_start(),
+        KeyCode::Char('$') | KeyCode::End => {
+            panel.line_end();
+            panel.clamp_col();
+        }
+        KeyCode::Char('x') | KeyCode::Delete => panel.delete_char_at_cursor(),
+        // 'dd' chord, mirroring the task list.
+        KeyCode::Char('d') if app.chord.toggle('d') => panel.delete_line(),
         KeyCode::Char('g') => panel.move_top(),
         KeyCode::Char('G') => panel.move_bottom(),
+        KeyCode::PageUp => panel.page_up(NOTE_PAGE_ROWS),
+        KeyCode::PageDown => panel.page_down(NOTE_PAGE_ROWS),
         _ => {}
     }
 }
+
+/// Rows a PageUp/PageDown jump moves the note-panel cursor.
+const NOTE_PAGE_ROWS: usize = 15;
 
 /// Close the note panel, persisting unsaved edits. With `to_editor`, queue
 /// the note in the external editor after closing (the panel's buffer was
