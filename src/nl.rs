@@ -145,6 +145,10 @@ fn contains_trigger(text: &str) -> bool {
         "tonight",
         "tomorrow",
         "yesterday",
+        "hoje",
+        "amanha",
+        "amanh\u{e3}",
+        "ontem",
         // weekdays
         "monday",
         "tuesday",
@@ -162,6 +166,15 @@ fn contains_trigger(text: &str) -> bool {
         "fri",
         "sat",
         "sun",
+        "segunda",
+        "terca",
+        "ter\u{e7}a",
+        "quarta",
+        "quinta",
+        "sexta",
+        "sabado",
+        "s\u{e1}bado",
+        "domingo",
         // recurrence
         "every",
         "each",
@@ -171,6 +184,16 @@ fn contains_trigger(text: &str) -> bool {
         "monthly",
         "yearly",
         "annually",
+        "toda",
+        "todo",
+        "todas",
+        "todos",
+        "cada",
+        "diariamente",
+        "semanalmente",
+        "quinzenalmente",
+        "mensalmente",
+        "anualmente",
         // prose markers
         "project",
         "proj",
@@ -194,7 +217,7 @@ fn contains_trigger(text: &str) -> bool {
 
     // Multi-word: "in N (day|week|month|year)s?"
     for i in 0..words.len() {
-        if words[i] == "in" && i + 2 < words.len() {
+        if (words[i] == "in" || words[i] == "em") && i + 2 < words.len() {
             let n = words[i + 1]
                 .parse::<u32>()
                 .ok()
@@ -477,16 +500,27 @@ fn word_number(s: &str) -> Option<u32> {
         "eight" => 8,
         "nine" => 9,
         "ten" => 10,
+        // Portuguese
+        "um" | "uma" => 1,
+        "dois" | "duas" => 2,
+        "tres" | "tr\u{ea}s" => 3,
+        "quatro" => 4,
+        "cinco" => 5,
+        "seis" => 6,
+        "sete" => 7,
+        "oito" => 8,
+        "nove" => 9,
+        "dez" => 10,
         _ => return None,
     })
 }
 
 fn unit_char(s: &str) -> Option<char> {
     Some(match s {
-        "day" | "days" => 'd',
-        "week" | "weeks" => 'w',
-        "month" | "months" => 'm',
-        "year" | "years" => 'y',
+        "day" | "days" | "dia" | "dias" => 'd',
+        "week" | "weeks" | "semana" | "semanas" => 'w',
+        "month" | "months" | "mes" | "m\u{ea}s" | "meses" => 'm',
+        "year" | "years" | "ano" | "anos" => 'y',
         _ => return None,
     })
 }
@@ -503,16 +537,16 @@ fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<Weekday> {
         }
         let w = scratch.word_lc(words[i]);
         let standalone = match w {
-            "daily" => Some(("+1d".to_string(), 1, None)),
-            "weekly" => Some(("+1w".to_string(), 1, None)),
-            "biweekly" => Some(("+2w".to_string(), 1, None)),
-            "monthly" => Some(("+1m".to_string(), 1, None)),
-            "yearly" | "annually" => Some(("+1y".to_string(), 1, None)),
+            "daily" | "diariamente" => Some(("+1d".to_string(), 1, None)),
+            "weekly" | "semanalmente" => Some(("+1w".to_string(), 1, None)),
+            "biweekly" | "quinzenalmente" => Some(("+2w".to_string(), 1, None)),
+            "monthly" | "mensalmente" => Some(("+1m".to_string(), 1, None)),
+            "yearly" | "annually" | "anualmente" => Some(("+1y".to_string(), 1, None)),
             _ => None,
         };
         let (rec, count, wh) = if let Some(s) = standalone {
             s
-        } else if w == "every" || w == "each" {
+        } else if matches!(w, "every" | "each" | "toda" | "todo" | "todas" | "todos" | "cada") {
             match parse_every_phrase(scratch, &words, i) {
                 Some(v) => v,
                 None => continue,
@@ -563,13 +597,7 @@ fn parse_every_phrase(
         if let Some(wd) = parse_weekday(w2) {
             return Some(("+2w".to_string(), 3, Some(wd)));
         }
-        let unit = match w2 {
-            "day" | "days" => 'd',
-            "week" | "weeks" => 'w',
-            "month" | "months" => 'm',
-            "year" | "years" => 'y',
-            _ => return None,
-        };
+        let unit = unit_char(w2)?;
         return Some((format!("+2{unit}"), 3, None));
     }
 
@@ -581,23 +609,11 @@ fn parse_every_phrase(
         if i + 2 >= words.len() {
             return None;
         }
-        let unit = match scratch.word_lc(words[i + 2]) {
-            "day" | "days" => 'd',
-            "week" | "weeks" => 'w',
-            "month" | "months" => 'm',
-            "year" | "years" => 'y',
-            _ => return None,
-        };
+        let unit = unit_char(scratch.word_lc(words[i + 2]))?;
         return Some((format!("+{n}{unit}"), 3, None));
     }
 
-    let unit = match w1 {
-        "day" => 'd',
-        "week" => 'w',
-        "month" => 'm',
-        "year" => 'y',
-        _ => return None,
-    };
+    let unit = unit_char(w1)?;
     Some((format!("+1{unit}"), 2, None))
 }
 
@@ -610,6 +626,15 @@ fn parse_weekday(s: &str) -> Option<Weekday> {
         "friday" | "fri" => Weekday::Fri,
         "saturday" | "sat" => Weekday::Sat,
         "sunday" | "sun" => Weekday::Sun,
+        // Portuguese: full names and -feira forms only. Short forms (seg,
+        // ter, …) are deliberately excluded — "ter" is the verb "to have".
+        "segunda" | "segunda-feira" => Weekday::Mon,
+        "terca" | "ter\u{e7}a" | "terca-feira" | "ter\u{e7}a-feira" => Weekday::Tue,
+        "quarta" | "quarta-feira" => Weekday::Wed,
+        "quinta" | "quinta-feira" => Weekday::Thu,
+        "sexta" | "sexta-feira" => Weekday::Fri,
+        "sabado" | "s\u{e1}bado" => Weekday::Sat,
+        "domingo" => Weekday::Sun,
         _ => return None,
     })
 }
@@ -659,13 +684,13 @@ fn match_date_at(
         return Some((d, 1));
     }
 
-    if w == "today" || w == "tonight" {
+    if w == "today" || w == "tonight" || w == "hoje" {
         return Some((today, 1));
     }
-    if w == "tomorrow" {
+    if w == "tomorrow" || w == "amanha" || w == "amanh\u{e3}" {
         return Some((today.checked_add_days(Days::new(1))?, 1));
     }
-    if w == "yesterday" {
+    if w == "yesterday" || w == "ontem" {
         return Some((today.checked_sub_days(Days::new(1))?, 1));
     }
 
@@ -674,30 +699,44 @@ fn match_date_at(
     // consumed along with the date so it doesn't survive into the body. Any
     // "before" still standing at this point has already been ignored by the
     // threshold pass (which would have consumed "N <unit> before [trailers]").
-    if matches!(w, "starting" | "on" | "due" | "by" | "before")
+    // Portuguese markers ("para amanh\u{e3}", "at\u{e9} sexta") are safe: the
+    // marker is only consumed when an actual date phrase follows it, so a
+    // prose "para" ("ligar para o cliente") passes through untouched.
+    if matches!(
+        w,
+        "starting" | "on" | "due" | "by" | "before" | "para" | "ate" | "at\u{e9}"
+    )
         && let Some((d, count)) = next_alive_match(scratch, words, i + 1, today)
     {
         return Some((d, 1 + count));
     }
 
-    if (w == "this" || w == "next")
+    if (w == "this" || w == "next" || w == "esta" || w == "essa" || w == "proxima" || w == "pr\u{f3}xima")
         && i + 1 < words.len()
         && let Some(wd) = parse_weekday(scratch.word_lc(words[i + 1]))
     {
-        let strict = w == "next";
+        let strict = w == "next" || w == "proxima" || w == "pr\u{f3}xima";
         if let Some(d) = next_weekday(today, wd, strict) {
             return Some((d, 2));
         }
     }
 
-    if let Some(wd) = parse_weekday(w)
-        && let Some(d) = next_weekday(today, wd, false)
-    {
-        return Some((d, 1));
+    if let Some(wd) = parse_weekday(w) {
+        // "sexta que vem" — the postfix marks the strictly-next week.
+        if i + 2 < words.len()
+            && scratch.word_lc(words[i + 1]) == "que"
+            && scratch.word_lc(words[i + 2]) == "vem"
+            && let Some(d) = next_weekday(today, wd, true)
+        {
+            return Some((d, 3));
+        }
+        if let Some(d) = next_weekday(today, wd, false) {
+            return Some((d, 1));
+        }
     }
 
-    // "in N <unit>s?"
-    if w == "in"
+    // "in N <unit>s?" / "em N <unidade>s?"
+    if (w == "in" || w == "em")
         && i + 2 < words.len()
         && let Some(n) = parse_number(scratch.word_lc(words[i + 1]))
     {
@@ -744,7 +783,7 @@ fn match_date_at(
     // "D[ord] (of)? MONTH(, YYYY)?"
     if let Some(day) = parse_day_ordinal(w) {
         let mut j = i + 1;
-        if j < words.len() && scratch.word_lc(words[j]) == "of" {
+        if j < words.len() && matches!(scratch.word_lc(words[j]), "of" | "de") {
             j += 1;
         }
         if j < words.len()
@@ -915,6 +954,20 @@ fn parse_month(s: &str) -> Option<u32> {
         "october" | "oct" => 10,
         "november" | "nov" => 11,
         "december" | "dec" => 12,
+        // Portuguese (full names; abbreviations skipped to avoid prose
+        // collisions like "mar"/"ago")
+        "janeiro" => 1,
+        "fevereiro" => 2,
+        "marco" | "mar\u{e7}o" => 3,
+        "abril" => 4,
+        "maio" => 5,
+        "junho" => 6,
+        "julho" => 7,
+        "agosto" => 8,
+        "setembro" => 9,
+        "outubro" => 10,
+        "novembro" => 11,
+        "dezembro" => 12,
         _ => return None,
     })
 }
@@ -1147,6 +1200,88 @@ mod tests {
         assert_eq!(parsed.due, Some(d("2026-05-12")));
         assert_eq!(parsed.rec, None);
         assert_eq!(parsed.threshold, None);
+    }
+
+    // ----- Portuguese vocabulary ---------------------------------------
+
+    #[test]
+    fn parses_portuguese_amanha() {
+        let today = d("2026-05-11");
+        let parsed = try_parse("Ligar para o cliente amanhã", today).unwrap();
+        assert_eq!(parsed.body, "Ligar para o cliente");
+        assert_eq!(parsed.due, Some(d("2026-05-12")));
+        // Unaccented spelling works too.
+        let parsed = try_parse("Ligar para o cliente amanha", today).unwrap();
+        assert_eq!(parsed.due, Some(d("2026-05-12")));
+    }
+
+    #[test]
+    fn parses_portuguese_hoje() {
+        let today = d("2026-05-11");
+        assert_eq!(
+            try_parse("Enviar proposta hoje", today).unwrap().due,
+            Some(d("2026-05-11"))
+        );
+    }
+
+    #[test]
+    fn portuguese_para_only_consumes_before_a_real_date() {
+        let today = d("2026-05-11"); // Monday
+        let parsed = try_parse("Ligar para o cliente para sexta", today).unwrap();
+        assert_eq!(parsed.body, "Ligar para o cliente");
+        assert_eq!(parsed.due, Some(d("2026-05-15")), "Friday this week");
+    }
+
+    #[test]
+    fn parses_portuguese_weekdays_and_proxima() {
+        let today = d("2026-05-11"); // Monday
+        assert_eq!(
+            try_parse("Reunião quinta-feira", today).unwrap().due,
+            Some(d("2026-05-14"))
+        );
+        assert_eq!(
+            try_parse("Reunião próxima segunda", today).unwrap().due,
+            Some(d("2026-05-18")),
+            "próxima = strictly next week"
+        );
+        assert_eq!(
+            try_parse("Reunião sexta que vem", today).unwrap().due,
+            Some(d("2026-05-15")),
+            "same semantics as English 'next': skips only a same-day match"
+        );
+    }
+
+    #[test]
+    fn parses_portuguese_em_n_dias_and_months() {
+        let today = d("2026-05-11");
+        assert_eq!(
+            try_parse("Revisar contrato em 3 dias", today).unwrap().due,
+            Some(d("2026-05-14"))
+        );
+        assert_eq!(
+            try_parse("Renovar domínio 15 de junho", today).unwrap().due,
+            Some(d("2026-06-15"))
+        );
+    }
+
+    #[test]
+    fn parses_portuguese_recurrence() {
+        let today = d("2026-05-11"); // Monday
+        let parsed = try_parse("Backup toda sexta", today).unwrap();
+        assert_eq!(parsed.rec, Some("+1w".to_string()));
+        assert_eq!(parsed.due, Some(d("2026-05-15")));
+        let parsed = try_parse("Relatório mensalmente", today).unwrap();
+        assert_eq!(parsed.rec, Some("+1m".to_string()));
+        let parsed = try_parse("Regar plantas cada 2 dias", today).unwrap();
+        assert_eq!(parsed.rec, Some("+2d".to_string()));
+    }
+
+    #[test]
+    fn portuguese_verb_ter_is_not_a_weekday() {
+        let today = d("2026-05-11");
+        // "ter" (to have) must not parse as terça; without any other
+        // trigger the whole phrase stays prose.
+        assert!(try_parse("Preciso ter acesso ao painel", today).is_none());
     }
 
     #[test]
