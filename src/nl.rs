@@ -529,7 +529,15 @@ fn unit_char(s: &str) -> Option<char> {
 // Pass 3: recurrence
 // ---------------------------------------------------------------------------
 
-fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<Weekday> {
+/// What the recurrence phrase anchors the first due date to: a weekday
+/// ("toda sexta") or a day of the month ("todo dia 2").
+#[derive(Debug, Clone, Copy)]
+enum RecHint {
+    Weekday(Weekday),
+    MonthDay(u32),
+}
+
+fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<RecHint> {
     let words = scratch.word_cache.clone();
     for i in 0..words.len() {
         if !scratch.is_live(words[i].0, words[i].1) {
@@ -544,9 +552,11 @@ fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<Weekday> {
             "yearly" | "annually" | "anualmente" => Some(("+1y".to_string(), 1, None)),
             _ => None,
         };
+        let is_every_word =
+            matches!(w, "every" | "each" | "toda" | "todo" | "todas" | "todos" | "cada");
         let (rec, count, wh) = if let Some(s) = standalone {
             s
-        } else if matches!(w, "every" | "each" | "toda" | "todo" | "todas" | "todos" | "cada") {
+        } else if is_every_word {
             match parse_every_phrase(scratch, &words, i) {
                 Some(v) => v,
                 None => continue,
@@ -554,7 +564,16 @@ fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<Weekday> {
         } else {
             continue;
         };
-        let start_byte = words[i].0;
+        // "a cada 15 dias": swallow the leading "a" so it doesn't survive
+        // into the body.
+        let mut start_byte = words[i].0;
+        if is_every_word
+            && i > 0
+            && scratch.word_lc(words[i - 1]) == "a"
+            && scratch.is_live(words[i - 1].0, words[i - 1].1)
+        {
+            start_byte = words[i - 1].0;
+        }
         let end_byte = words[i + count - 1].1;
         scratch.mark(start_byte, end_byte);
         p.rec = Some(rec);
@@ -569,11 +588,20 @@ fn parse_every_phrase(
     scratch: &Scratch,
     words: &[(usize, usize)],
     i: usize,
-) -> Option<(String, usize, Option<Weekday>)> {
+) -> Option<(String, usize, Option<RecHint>)> {
     if i + 1 >= words.len() {
         return None;
     }
     let w1 = scratch.word_lc(words[i + 1]);
+
+    // "todo dia 2": monthly recurrence anchored on that day of the month.
+    if w1 == "dia"
+        && i + 2 < words.len()
+        && let Some(n) = parse_number(scratch.word_lc(words[i + 2]))
+        && (1..=31).contains(&n)
+    {
+        return Some(("+1m".to_string(), 3, Some(RecHint::MonthDay(n))));
+    }
 
     if w1 == "weekday" {
         return Some(("+1b".to_string(), 2, None));
@@ -595,14 +623,14 @@ fn parse_every_phrase(
         }
         let w2 = scratch.word_lc(words[i + 2]);
         if let Some(wd) = parse_weekday(w2) {
-            return Some(("+2w".to_string(), 3, Some(wd)));
+            return Some(("+2w".to_string(), 3, Some(RecHint::Weekday(wd))));
         }
         let unit = unit_char(w2)?;
         return Some((format!("+2{unit}"), 3, None));
     }
 
     if let Some(wd) = parse_weekday(w1) {
-        return Some(("+1w".to_string(), 2, Some(wd)));
+        return Some(("+1w".to_string(), 2, Some(RecHint::Weekday(wd))));
     }
 
     if let Some(n) = parse_number(w1) {
@@ -647,7 +675,7 @@ fn pass_date(
     scratch: &mut Scratch,
     p: &mut ParsedNl,
     today: NaiveDate,
-    weekday_hint: Option<Weekday>,
+    rec_hint: Option<RecHint>,
 ) {
     let words = scratch.word_cache.clone();
     for i in 0..words.len() {
@@ -662,12 +690,39 @@ fn pass_date(
             return;
         }
     }
-    if p.due.is_none()
-        && let Some(wd) = weekday_hint
-        && let Some(d) = next_weekday(today, wd, true)
-    {
-        p.due = Some(d);
+    if p.due.is_none() {
+        match rec_hint {
+            Some(RecHint::Weekday(wd)) => {
+                if let Some(d) = next_weekday(today, wd, true) {
+                    p.due = Some(d);
+                }
+            }
+            Some(RecHint::MonthDay(day)) => {
+                if let Some(d) = next_month_day(today, day) {
+                    p.due = Some(d);
+                }
+            }
+            None => {}
+        }
     }
+}
+
+/// Next occurrence (today included) of day-of-month `day`. Months missing
+/// the day (e.g. 31 in April) are skipped to the next month that has it.
+fn next_month_day(today: NaiveDate, day: u32) -> Option<NaiveDate> {
+    if day >= today.day()
+        && let Some(d) = NaiveDate::from_ymd_opt(today.year(), today.month(), day)
+    {
+        return Some(d);
+    }
+    let mut anchor = today;
+    for _ in 0..24 {
+        anchor = anchor.checked_add_months(Months::new(1))?;
+        if let Some(d) = NaiveDate::from_ymd_opt(anchor.year(), anchor.month(), day) {
+            return Some(d);
+        }
+    }
+    None
 }
 
 /// Try every supported date phrase starting at `words[i]`. Returns the
@@ -1274,6 +1329,36 @@ mod tests {
         assert_eq!(parsed.rec, Some("+1m".to_string()));
         let parsed = try_parse("Regar plantas cada 2 dias", today).unwrap();
         assert_eq!(parsed.rec, Some("+2d".to_string()));
+    }
+
+    #[test]
+    fn parses_portuguese_recurrence_variants() {
+        let today = d("2026-05-11"); // Monday, May 11
+        // "toda sexta-feira" — full -feira form.
+        let parsed = try_parse("Backup toda sexta-feira", today).unwrap();
+        assert_eq!(parsed.rec, Some("+1w".to_string()));
+        assert_eq!(parsed.due, Some(d("2026-05-15")));
+        assert_eq!(parsed.body, "Backup");
+
+        // "a cada 15 dias" — the leading "a" must not leak into the body.
+        let parsed = try_parse("Conferir estoque a cada 15 dias", today).unwrap();
+        assert_eq!(parsed.rec, Some("+15d".to_string()));
+        assert_eq!(parsed.body, "Conferir estoque");
+
+        // "todo dia 02" — monthly, anchored on the next day-2.
+        let parsed = try_parse("Pagar aluguel todo dia 02", today).unwrap();
+        assert_eq!(parsed.rec, Some("+1m".to_string()));
+        assert_eq!(parsed.due, Some(d("2026-06-02")));
+        assert_eq!(parsed.body, "Pagar aluguel");
+
+        // Day-of-month later in the current month stays in it.
+        let parsed = try_parse("Fechar folha todo dia 25", today).unwrap();
+        assert_eq!(parsed.due, Some(d("2026-05-25")));
+
+        // Day 31 skips months that lack it (from June 1st: June 31 doesn't
+        // exist, so July 31).
+        let parsed = try_parse("Backup todo dia 31", d("2026-06-01")).unwrap();
+        assert_eq!(parsed.due, Some(d("2026-07-31")));
     }
 
     #[test]
