@@ -30,6 +30,12 @@ impl Default for Layout {
 #[derive(Debug, Clone)]
 pub struct Prefs {
     theme_idx: usize,
+    /// Theme name from the config that didn't resolve against the registry
+    /// (e.g. a user theme file that this instance didn't load). We fall back
+    /// visually but keep the configured name on save, so a stale instance
+    /// can't silently downgrade `theme =` for everyone else. Cleared as soon
+    /// as the user picks a theme in-app.
+    unresolved_theme: Option<String>,
     pub density: Density,
     pub sort: Sort,
     pub layout: Layout,
@@ -43,13 +49,18 @@ pub struct Prefs {
 
 impl Prefs {
     pub fn from_config(cfg: Config) -> Self {
-        let theme_idx = cfg
+        let resolved = cfg
             .theme
             .as_deref()
-            .and_then(|name| theme::all().iter().position(|t| t.name == name))
-            .unwrap_or(0);
+            .map(|name| theme::all().iter().position(|t| t.name == name));
+        let theme_idx = resolved.flatten().unwrap_or(0);
+        let unresolved_theme = match resolved {
+            Some(None) => cfg.theme.clone(),
+            _ => None,
+        };
         Self {
             theme_idx,
+            unresolved_theme,
             density: cfg.density.unwrap_or(Density::Comfortable),
             sort: cfg.sort.unwrap_or(Sort::Priority),
             layout: Layout {
@@ -79,6 +90,7 @@ impl Prefs {
     /// `cycle_theme` instead so the change persists with a flash message.
     pub fn set_theme_idx(&mut self, idx: usize) {
         self.theme_idx = idx % theme::all().len();
+        self.unresolved_theme = None;
     }
 
     pub fn sort_label(&self) -> &'static str {
@@ -87,6 +99,7 @@ impl Prefs {
 
     pub fn cycle_theme(&mut self) -> String {
         self.theme_idx = (self.theme_idx + 1) % theme::all().len();
+        self.unresolved_theme = None;
         format!("theme: {}", self.theme().name)
     }
 
@@ -146,7 +159,13 @@ impl Prefs {
     /// preserved across pref toggles.
     pub fn save(&self) -> io::Result<()> {
         let mut cfg = Config::load();
-        cfg.theme = Some(self.theme().name.to_string());
+        // An unresolved configured theme round-trips by name; only a theme
+        // this instance actually knows overwrites it.
+        cfg.theme = Some(
+            self.unresolved_theme
+                .clone()
+                .unwrap_or_else(|| self.theme().name.to_string()),
+        );
         cfg.density = Some(self.density);
         cfg.sort = Some(self.sort);
         cfg.show_left = Some(self.layout.left);

@@ -623,3 +623,15 @@ matched = #b58900
         let _ = fs::remove_dir_all(&dir);
     }
 }
+
+#[cfg(test)]
+mod phosphor_regression {
+    #[test]
+    fn shipped_phosphor_theme_parses() {
+        let body = include_str!("../docs/themes/phosphor-green.toml");
+        match super::parse_theme(body) {
+            Ok(t) => assert_eq!(t.name, "Phosphor Green"),
+            Err(e) => panic!("phosphor-green.toml failed to parse: {e}"),
+        }
+    }
+}

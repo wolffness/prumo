@@ -1,0 +1,41 @@
+{
+  "Profiles": [
+    {
+      "Name": "Tuxedo",
+      "Guid": "tuxedo-phosphor-green",
+      "Normal Font": "IBMPlexMono 14",
+      "Use Non-ASCII Font": false,
+      "Custom Command": "Yes",
+      "Command": "/bin/zsh -lc 'cd \"$HOME\"; exec tuxedo'",
+      "Background Color": {
+        "Red Component": 0.008,
+        "Green Component": 0.04,
+        "Blue Component": 0.008
+      },
+      "Foreground Color": {
+        "Red Component": 0.2,
+        "Green Component": 1.0,
+        "Blue Component": 0.2
+      },
+      "Bold Color": {
+        "Red Component": 0.4,
+        "Green Component": 1.0,
+        "Blue Component": 0.4
+      },
+      "Cursor Color": {
+        "Red Component": 0.2,
+        "Green Component": 1.0,
+        "Blue Component": 0.2
+      },
+      "Cursor Text Color": {
+        "Red Component": 0.008,
+        "Green Component": 0.04,
+        "Blue Component": 0.008
+      },
+      "Blinking Cursor": true,
+      "Silence Bell": true,
+      "Unlimited Scrollback": false,
+      "Scrollback Lines": 0
+    }
+  ]
+}
