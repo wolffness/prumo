@@ -16,14 +16,17 @@ use crate::note;
 
 impl App {
     pub fn toggle_complete(&mut self, abs: usize) {
-        match self.store.toggle_complete(abs) {
-            CompleteOutcome::Completed { abs } => {
-                self.flash("completed");
-                self.after_mutation(abs);
+        // Completion is stamped with the wall-clock time (`done_at:` token)
+        // and the finished task is archived right away, so `done.txt` keeps
+        // a searchable when-was-it-done log. Un-completing never archives.
+        let now = chrono::Local::now().format("%H:%M").to_string();
+        match self.store.toggle_complete_at(abs, Some(&now)) {
+            CompleteOutcome::Completed { .. } => {
+                self.archive_after_complete("completed → archived");
             }
-            CompleteOutcome::CompletedSpawned { next, .. } => {
-                self.flash("completed +next");
-                self.after_mutation(next);
+            CompleteOutcome::CompletedSpawned { .. } => {
+                // The spawned successor stays in the list.
+                self.archive_after_complete("completed +next → archived");
             }
             CompleteOutcome::Uncompleted { abs } => {
                 self.flash("uncompleted");
@@ -33,6 +36,23 @@ impl App {
             CompleteOutcome::OutOfRange => {}
             CompleteOutcome::Error(e) => self.flash(format!("complete failed: {e}")),
         }
+    }
+
+    /// Move freshly completed tasks into `done.txt` and refresh the view.
+    /// On archive failure the task stays completed in the list and the
+    /// error is flashed instead of the success message.
+    fn archive_after_complete(&mut self, msg: &str) {
+        match self.store.archive_completed() {
+            ArchiveOutcome::Archived { .. } => self.flash(msg),
+            ArchiveOutcome::Nothing => self.flash("completed"),
+            ArchiveOutcome::Aborted(r) => {
+                self.handle_reconcile_abort(r);
+                return;
+            }
+            ArchiveOutcome::Error(e) => self.flash(format!("archive failed: {e}")),
+        }
+        self.recompute_visible();
+        self.clamp_cursor();
     }
 
     pub fn cycle_priority(&mut self, abs: usize) {
@@ -449,16 +469,29 @@ mod tests {
     }
 
     #[test]
-    fn toggle_complete_flashes_completed_then_spawned() {
+    fn toggle_complete_archives_stamped_task() {
         let mut app = build_app("a\n");
         app.toggle_complete(0);
-        assert!(app.tasks()[0].done);
-        assert_eq!(app.flash_active(), Some("completed"));
+        // The completed task moves straight to the archive with a done_at
+        // timestamp; the list is left empty.
+        assert!(app.tasks().is_empty());
+        let archived = app.archive().tasks();
+        assert_eq!(archived.len(), 1);
+        assert!(archived[0].done);
+        assert!(
+            archived[0].raw.contains("done_at:"),
+            "completion stamped: {}",
+            archived[0].raw
+        );
+        assert_eq!(app.flash_active(), Some("completed → archived"));
 
         let mut app = build_app("(A) 2026-04-15 Pay rent due:2026-04-15 rec:+1m\n");
         app.toggle_complete(0);
-        assert_eq!(app.tasks().len(), 2);
-        assert_eq!(app.flash_active(), Some("completed +next"));
+        // Completed instance archived; the spawned successor stays.
+        assert_eq!(app.tasks().len(), 1);
+        assert!(!app.tasks()[0].done);
+        assert_eq!(app.archive().tasks().len(), 1);
+        assert_eq!(app.flash_active(), Some("completed +next → archived"));
     }
 
     #[test]

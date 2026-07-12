@@ -8,6 +8,13 @@ use crate::todo::{self, TagError};
 
 impl Store {
     pub fn toggle_complete(&mut self, abs: usize) -> CompleteOutcome {
+        self.toggle_complete_at(abs, None)
+    }
+
+    /// Like [`Store::toggle_complete`], stamping completions with a
+    /// `done_at:` token when `done_time` (`HH:MM`) is given. The time comes
+    /// from the caller so the core stays deterministic in tests.
+    pub fn toggle_complete_at(&mut self, abs: usize, done_time: Option<&str>) -> CompleteOutcome {
         match self.reconcile() {
             Reconcile::Unchanged => {}
             other => return CompleteOutcome::Aborted(other),
@@ -31,7 +38,7 @@ impl Store {
         let result = if was_done {
             self.tasks[abs].unmark_done()
         } else {
-            self.tasks[abs].mark_done(&self.today)
+            self.tasks[abs].mark_done_at(&self.today, done_time)
         };
         match result {
             Ok(()) => {
@@ -337,6 +344,16 @@ impl Store {
     /// Bulk-complete the given task indices, spawning recurring successors.
     /// Indices that are out of range or already done are skipped.
     pub fn complete_many(&mut self, indices: &[usize]) -> BulkCompleteOutcome {
+        self.complete_many_at(indices, None)
+    }
+
+    /// Like [`Store::complete_many`], stamping each completion with a
+    /// `done_at:` token when `done_time` (`HH:MM`) is given.
+    pub fn complete_many_at(
+        &mut self,
+        indices: &[usize],
+        done_time: Option<&str>,
+    ) -> BulkCompleteOutcome {
         match self.reconcile() {
             Reconcile::Unchanged => {}
             other => return BulkCompleteOutcome::Aborted(other),
@@ -359,7 +376,13 @@ impl Store {
             let rec_spec = t.rec.as_deref().and_then(recurrence::parse_rec_spec);
             let created = t.created_date.clone().unwrap_or_else(|| self.today.clone());
             let body = todo::body_after_priority(&raw).to_string();
-            let new_raw = format!("x {} {} {}", self.today, created, body);
+            let new_raw = match done_time {
+                Some(time) => format!(
+                    "x {} {} {} done_at:{}T{time}",
+                    self.today, created, body, self.today
+                ),
+                None => format!("x {} {} {}", self.today, created, body),
+            };
             if let Ok(parsed) = todo::parse_line(&new_raw) {
                 self.tasks[abs] = parsed;
             }

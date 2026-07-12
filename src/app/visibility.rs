@@ -75,7 +75,12 @@ impl App {
 
     fn rebuild_archive_cache(&mut self) {
         let archive = self.store.archive().tasks();
-        let mut idxs: Vec<usize> = (0..archive.len()).collect();
+        // The archive honors the same search/project/context filters as the
+        // list view, so `/` can dig up past completions.
+        let needle = (!self.filter.search.is_empty()).then_some(self.filter.search.as_str());
+        let mut idxs: Vec<usize> = (0..archive.len())
+            .filter(|&i| filter::passes_user_filter(&archive[i], &self.filter, needle))
+            .collect();
         idxs.sort_by(|&a, &b| {
             archive[b]
                 .done_date

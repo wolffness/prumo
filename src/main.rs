@@ -1589,6 +1589,41 @@ mod tests {
         assert!(src.exists());
     }
 
+    /// `x` completes with a done_at timestamp, archives to done.txt, and the
+    /// archive view finds it via `/` search.
+    #[test]
+    fn x_completes_archives_with_timestamp_and_is_searchable() {
+        let dir = std::env::temp_dir().join(format!(
+            "tuxedo-complete-e2e-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let todo = dir.join("todo.txt");
+        let raw = "Send invoice +client\nOther task\n";
+        std::fs::write(&todo, raw).expect("seed todo");
+        let mut app = App::new(todo, raw.to_string(), "2026-05-06".into(), Config::default());
+        let kb = KeyBindings::default();
+
+        handle_key(&mut app, key('x'), &kb);
+
+        assert_eq!(app.tasks().len(), 1, "completed task left the list");
+        let done = std::fs::read_to_string(dir.join("done.txt")).expect("done.txt written");
+        assert!(
+            done.contains("x 2026-05-06 2026-05-06 Send invoice +client done_at:2026-05-06T"),
+            "archived with timestamp: {done}"
+        );
+
+        // Archive view honors search.
+        handle_key(&mut app, key('a'), &kb);
+        assert_eq!(app.view(), View::Archive);
+        assert_eq!(app.visible_indices().len(), 1);
+        app.set_search("invoice".into());
+        assert_eq!(app.visible_indices().len(), 1, "match stays visible");
+        app.set_search("zzz".into());
+        assert_eq!(app.visible_indices().len(), 0, "non-match filtered out");
+    }
+
     /// Arrow keys must move the note-panel cursor in both view and insert
     /// modes, through the real key dispatcher.
     #[test]

@@ -246,6 +246,14 @@ impl Task {
     /// task carried no creation date, `today` is used so the line stays well-
     /// formed.
     pub fn mark_done(&mut self, today: &str) -> Result<(), ParseError> {
+        self.mark_done_at(today, None)
+    }
+
+    /// Like [`Task::mark_done`], additionally stamping the completion time
+    /// as a `done_at:YYYY-MM-DDTHH:MM` token when `time` (`HH:MM`) is given.
+    /// The token survives archiving, so completions stay searchable by
+    /// date/hour in `done.txt`.
+    pub fn mark_done_at(&mut self, today: &str, time: Option<&str>) -> Result<(), ParseError> {
         if self.done {
             return Ok(());
         }
@@ -254,7 +262,10 @@ impl Task {
             .clone()
             .unwrap_or_else(|| today.to_string());
         let body = body_after_priority(&self.raw);
-        let new_raw = format!("x {today} {created} {body}");
+        let new_raw = match time {
+            Some(t) => format!("x {today} {created} {body} done_at:{today}T{t}"),
+            None => format!("x {today} {created} {body}"),
+        };
         self.replace_from_raw(&new_raw)
     }
 
@@ -278,6 +289,12 @@ impl Task {
         } else {
             after_x.to_string()
         };
+        // Drop the completion stamp: an un-completed task has no done time.
+        let body = body
+            .split_whitespace()
+            .filter(|tok| !tok.starts_with("done_at:"))
+            .collect::<Vec<_>>()
+            .join(" ");
         self.replace_from_raw(&body)
     }
 

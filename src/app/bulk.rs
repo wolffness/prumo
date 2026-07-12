@@ -11,15 +11,21 @@ impl App {
             return;
         }
         let indices: Vec<usize> = self.selection.iter().collect();
-        match self.store.complete_many(&indices) {
+        let now = chrono::Local::now().format("%H:%M").to_string();
+        match self.store.complete_many_at(&indices, Some(&now)) {
             BulkCompleteOutcome::Done { completed, spawned } => {
                 self.selection.clear();
                 self.mode = Mode::Normal;
                 self.flash(if spawned > 0 {
-                    format!("completed {completed} (+{spawned} recurring)")
+                    format!("completed {completed} (+{spawned} recurring) → archived")
                 } else {
-                    format!("completed {completed}")
+                    format!("completed {completed} → archived")
                 });
+                // Same policy as single-task complete: finished tasks move
+                // straight to done.txt.
+                if let crate::core::ArchiveOutcome::Error(e) = self.store.archive_completed() {
+                    self.flash(format!("archive failed: {e}"));
+                }
                 self.recompute_visible();
                 self.clamp_cursor();
             }
@@ -63,18 +69,21 @@ mod tests {
     use crate::app::test_support::build_app;
 
     #[test]
-    fn complete_selected_clears_selection_and_flashes() {
+    fn complete_selected_archives_stamped_tasks_and_flashes() {
         let mut app = build_app("a\nb\nc\n");
         app.selection.toggle(0);
         app.selection.toggle(2);
         app.mode = Mode::Visual;
         app.complete_selected();
-        assert!(app.tasks()[0].done);
-        assert!(!app.tasks()[1].done);
-        assert!(app.tasks()[2].done);
+        // Completed tasks move straight to the archive, stamped with done_at.
+        assert_eq!(app.tasks().len(), 1);
+        assert_eq!(app.tasks()[0].raw, "b");
+        let archived = app.archive().tasks();
+        assert_eq!(archived.len(), 2);
+        assert!(archived.iter().all(|t| t.done && t.raw.contains("done_at:")));
         assert!(app.selection.is_empty());
         assert_eq!(app.mode, Mode::Normal);
-        assert_eq!(app.flash_active(), Some("completed 2"));
+        assert_eq!(app.flash_active(), Some("completed 2 → archived"));
     }
 
     #[test]
@@ -85,8 +94,13 @@ mod tests {
         app.selection.toggle(3);
         app.mode = Mode::Visual;
         app.complete_selected();
-        assert_eq!(app.tasks().len(), 6);
-        assert_eq!(app.flash_active(), Some("completed 2 (+2 recurring)"));
+        // 2 completed instances archived; spawned successors stay in the list.
+        assert_eq!(app.tasks().len(), 4);
+        assert_eq!(app.archive().tasks().len(), 2);
+        assert_eq!(
+            app.flash_active(),
+            Some("completed 2 (+2 recurring) → archived")
+        );
     }
 
     #[test]
