@@ -166,6 +166,11 @@ pub struct App {
     /// URI) register the mapping here during draw. Cleared at the start of
     /// every frame; `RefCell` because renderers only hold `&App`.
     pub(crate) link_targets: std::cell::RefCell<std::collections::HashMap<String, String>>,
+    /// Clickable screen regions registered during draw: `(rect, path)` pairs
+    /// for attachment rows in the DETAIL pane. The run loop hit-tests mouse
+    /// clicks against these and opens the path with the system opener.
+    /// Cleared alongside `link_targets` at the start of every frame.
+    pub(crate) click_targets: std::cell::RefCell<Vec<(ratatui::layout::Rect, PathBuf)>>,
     /// Theme index captured when the theme picker opened, so cancel
     /// can restore it.
     theme_pick_orig: usize,
@@ -231,6 +236,7 @@ impl App {
             pending_editor_path: None,
             note_panel: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
+            click_targets: std::cell::RefCell::new(Vec::new()),
             theme_pick_orig: 0,
             week_start: WeekStart::Sunday,
         };
@@ -467,6 +473,22 @@ impl App {
     /// every `ui::draw` so stale mappings from previous frames can't leak.
     pub fn clear_link_targets(&self) {
         self.link_targets.borrow_mut().clear();
+        self.click_targets.borrow_mut().clear();
+    }
+
+    /// Register a clickable screen region that opens `path` (see
+    /// `click_targets`).
+    pub fn register_click_target(&self, rect: ratatui::layout::Rect, path: PathBuf) {
+        self.click_targets.borrow_mut().push((rect, path));
+    }
+
+    /// Path registered under the screen cell `(x, y)` this frame, if any.
+    pub fn click_target_at(&self, x: u16, y: u16) -> Option<PathBuf> {
+        self.click_targets
+            .borrow()
+            .iter()
+            .find(|(r, _)| x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height)
+            .map(|(_, p)| p.clone())
     }
 
     /// Register a link target for a piece of underlined display text (see

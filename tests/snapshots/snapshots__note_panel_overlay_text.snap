@@ -12,9 +12,9 @@ expression: buffer_to_text(&buf)
    +learning        │Some context about the task.                              │                    
    +personal        │                                                          │                    
    +travel          │- [ ] draft outline                                       │                    
-                    │- [x] collect links                                       │1 Finish Q2 board   
- CONTEXTS           │> reviewer prefers short PRs                              │aptop               
-   @errands         │One very long paragraph line that certainly exceeds the pa│6                   
+                    │- [x] collect links                                       │                    
+ CONTEXTS           │> reviewer prefers short PRs                              │                    
+   @errands         │One very long paragraph line that certainly exceeds the pa│                    
    @home            │nel width and must hard-wrap onto multiple display rows wi│                    
    @laptop          │thout losing the cursor.                                  │                    
    @phone           │                                                          │                    

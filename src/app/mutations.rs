@@ -295,7 +295,7 @@ impl App {
             return;
         }
         let assets = crate::attach::assets_dir(&self.file_path);
-        let name = match crate::attach::copy_into_assets(&src, &assets) {
+        let name = match crate::attach::move_into_assets(&src, &assets) {
             Ok(name) => name,
             Err(e) => {
                 self.flash(format!("attach failed: {e}"));

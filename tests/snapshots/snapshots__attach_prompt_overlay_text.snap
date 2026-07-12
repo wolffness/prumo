@@ -10,10 +10,10 @@ expression: buffer_to_text(&buf)
    +finance          2     (3)  PRIORITY B  ────────────────────── projects  +work                  
    +home             1      3   (B) Review pull requests for auth  contexts  @laptop                
    +learning         1      4   (B) Renew passport before summer t                                  
-   +personal         1      5   (B) Draft hiring rubric for senior RAW                              
+   +personal         1      5   (B) Draft hiring rubric for senior                                  
    +travel           1     (2)  PRIORITY C  ──────────────────────                                  
-                            6   (C) Pay quarterly estimated taxes  (A) 2026-05-01 Finish Q2 board   
- CONTEXTS                   7   (C) Order new running shoes +healt deck +work @laptop               
+                            6   (C) Pay quarterly estimated taxes                                   
+ CONTEXTS                   7   (C) Order new running shoes +healt                                  
    @errands    ┌ ATTACH FILE ───────────────────────────────────────────────────────┐               
    @home       │  ▣█                                                                │               
    @laptop     │                                                                    │               

@@ -56,13 +56,23 @@ PROFILE
     /usr/bin/osascript <<EOF
 tell application "iTerm2"
     activate
-    try
-        create window with profile "Tuxedo"
-    on error
-        -- Dynamic profile not registered yet (first launch): plain window.
+    -- iTerm2 loads DynamicProfiles asynchronously after startup, so a
+    -- cold launch may not know "Tuxedo" yet: retry briefly before falling
+    -- back to a default window (which would lose the font/colors).
+    set opened to false
+    repeat with i from 1 to 20
+        try
+            create window with profile "Tuxedo"
+            set opened to true
+            exit repeat
+        on error
+            delay 0.25
+        end try
+    end repeat
+    if not opened then
         set w to (create window with default profile)
         tell current session of w to write text "cd \"\$HOME\"; clear; exec '$BIN'"
-    end try
+    end if
 end tell
 EOF
     # Stay alive while tuxedo runs so the Dock shows the app as open

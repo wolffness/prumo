@@ -9,9 +9,6 @@ expression: buffer_to_text(&buf)
                                                                    projects  +client                
  CONTEXTS                                                          contexts                         
    tag with @context                                                                                
-                                                                   FILES                            
-                                                                   spec.pdf                         
-                                                                                                    
                                                                    NOTE                             
                                                                    # Briefing                       
                                                                                                     
@@ -20,10 +17,13 @@ expression: buffer_to_text(&buf)
                                                                    - [ ] send agenda                
                                                                    > keep it short                  
                                                                                                     
-                                                                   RAW                              
+                                                                   FILES                            
+                                                                   spec.pdf                         
                                                                                                     
-                                                                   Prepare client call +client      
-                                                                   note:briefing.md at:spec.pdf     
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

@@ -12,7 +12,7 @@ expression: buffer_to_text(&buf)
    +l│    Ctrl-d / Ctrl-u   page down / up            v                 visual / multi-select │     
    +p│                                                l                 list view             │     
    +t│  EDITING                                       a                 archive view          │     
-     │    n                 new task                  A                 archive completed     │rd   
+     │    n                 new task                  A                 archive completed     │     
  CONT│    e                 edit line (normal)        H                 show done in list     │     
    @e│    i                 edit line (insert)        F                 show future in list   │     
    @h│    r                 reschedule task           [ / ]             toggle filter / detail│     

@@ -6,7 +6,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use ratatui::DefaultTerminal;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseButton, MouseEventKind,
+};
 
 use std::io::Write;
 
@@ -110,12 +113,17 @@ fn main() -> Result<()> {
     }
 
     let terminal = ratatui::init();
+    // Mouse capture: attachment rows in the DETAIL pane open on click.
+    // (Terminal text selection still works with the terminal's bypass
+    // modifier — Option-drag in iTerm2/Terminal.app.)
+    let _ = crossterm::execute!(io::stdout(), EnableMouseCapture);
     // Give the window/tab a consistent `tuxedo <path>` title across terminals
     // and operating systems, shortening long paths to fit a fixed budget.
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
     let title = ui::title::terminal_title(&path, home.as_deref(), ui::title::DEFAULT_BUDGET);
     let _ = crossterm::execute!(io::stdout(), crossterm::terminal::SetTitle(title));
     let result = run(terminal, &mut app_state, &keybinds, config_rx);
+    let _ = crossterm::execute!(io::stdout(), DisableMouseCapture);
     ratatui::restore();
     // Clear the title on exit so the shell retitles on its next prompt rather
     // than leaving `tuxedo …` behind.
@@ -243,6 +251,17 @@ fn run(
                 Event::Resize(_, _) => {
                     dirty = true;
                 }
+                // Left click on a registered target (attachment rows in the
+                // DETAIL pane) opens it with the system opener.
+                Event::Mouse(m) if m.kind == MouseEventKind::Down(MouseButton::Left) => {
+                    if let Some(path) = app.click_target_at(m.column, m.row) {
+                        match tuxedo::attach::open_with_system(&path) {
+                            Ok(()) => app.flash("opened attachment"),
+                            Err(e) => app.flash(format!("open failed: {e}")),
+                        }
+                        dirty = true;
+                    }
+                }
                 _ => {}
             }
         } else if !app.check_external_changes() {
@@ -293,12 +312,14 @@ fn open_path_in_editor(path: &std::path::Path) -> Result<()> {
     let editor = std::env::var("VISUAL")
         .or_else(|_| std::env::var("EDITOR"))
         .unwrap_or_else(|_| "nvim".to_string());
+    let _ = crossterm::execute!(io::stdout(), DisableMouseCapture);
     ratatui::restore();
     let status = std::process::Command::new(&editor)
         .arg(path)
         .status()
         .with_context(|| format!("failed to launch editor `{editor}`"));
     ratatui::crossterm::terminal::enable_raw_mode()?;
+    let _ = crossterm::execute!(io::stdout(), EnableMouseCapture);
     ratatui::crossterm::execute!(
         io::stdout(),
         ratatui::crossterm::terminal::EnterAlternateScreen
@@ -1540,9 +1561,9 @@ mod tests {
 
     /// End-to-end attach flow through the real key dispatcher: `t` opens the
     /// prompt, a dropped path (with Finder-style escaped spaces) is typed,
-    /// Enter copies the file into `assets/` and appends the `at:` token.
+    /// Enter moves the file into `assets/` and appends the `at:` token.
     #[test]
-    fn attach_prompt_copies_file_into_assets_and_appends_token() {
+    fn attach_prompt_moves_file_into_assets_and_appends_token() {
         let dir = std::env::temp_dir().join(format!(
             "tuxedo-attach-e2e-{}-{:?}",
             std::process::id(),
@@ -1580,13 +1601,13 @@ mod tests {
             task_raw.contains("at:client-brief.pdf"),
             "token appended: {task_raw}"
         );
-        let copied = dir.join("assets/client-brief.pdf");
+        let moved = dir.join("assets/client-brief.pdf");
         assert_eq!(
-            std::fs::read(&copied).expect("copied attachment"),
+            std::fs::read(&moved).expect("moved attachment"),
             b"pdf-bytes"
         );
-        // Original file untouched.
-        assert!(src.exists());
+        // The original is gone: attaching MOVES the file into the project.
+        assert!(!src.exists());
     }
 
     /// `x` completes with a done_at timestamp, archives to done.txt, and the

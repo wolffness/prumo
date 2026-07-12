@@ -12,9 +12,9 @@ expression: buffer_to_text(&buf)
    +learning        │ > █                                                      │                    
    +personal        │──────────────────────────────────────────────────────────│                    
    +travel          │ ▶ new task                                             n │                    
-                    │   edit current task (normal mode)                      e │1 Finish Q2 board   
- CONTEXTS           │   edit current task (insert mode)                      i │aptop               
-   @errands         │   toggle complete                                      x │6                   
+                    │   edit current task (normal mode)                      e │                    
+ CONTEXTS           │   edit current task (insert mode)                      i │                    
+   @errands         │   toggle complete                                      x │                    
    @home            │   delete task                                         dd │                    
    @laptop          │   cycle priority                                       p │                    
    @phone           │   add project to current task                          + │                    

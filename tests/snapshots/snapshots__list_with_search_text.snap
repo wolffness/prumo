@@ -10,11 +10,11 @@ expression: buffer_to_text(&buf)
    +finance          2      2   (B) Review pull requests for auth  projects  +work                  
    +home             1      3   (B) Draft hiring rubric for senior contexts  @laptop                
    +learning         1     (1)  NO PRIORITY  ─────────────────────                                  
-   +personal         1      4       Migrate analytics to new pipel RAW                              
+   +personal         1      4       Migrate analytics to new pipel                                  
    +travel           1                                                                              
-                                                                   (A) 2026-05-01 Finish Q2 board   
- CONTEXTS                                                          deck +work @laptop               
-   @errands          4                                             due:2026-05-06                   
+                                                                                                    
+ CONTEXTS                                                                                           
+   @errands          4                                                                              
    @home             4                                                                              
    @laptop           4                                                                              
    @phone            3                                                                              

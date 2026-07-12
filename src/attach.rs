@@ -4,14 +4,14 @@
 //!
 //! The attach prompt (`t`) accepts a path typed by hand or dropped onto the
 //! terminal (terminals paste the dragged file's path, usually with
-//! shell-escaped spaces), copies the file into `assets/`, and appends the
+//! shell-escaped spaces), moves the file into `assets/`, and appends the
 //! token. Enter on a task opens its attachments with the system opener.
 
 use std::path::{Path, PathBuf};
 
 pub const ASSETS_SUBDIR: &str = "assets";
 
-/// Directory attachments are copied into: `assets/` next to the todo file.
+/// Directory attachments are moved into: `assets/` next to the todo file.
 pub fn assets_dir(todo_path: &Path) -> PathBuf {
     todo_path
         .parent()
@@ -69,11 +69,13 @@ pub fn clean_dropped_path(input: &str) -> PathBuf {
     PathBuf::from(out)
 }
 
-/// Copy `src` into `assets_dir`, returning the destination file name to use
-/// in the `at:` token. Whitespace in the name is dashed (todo.txt tokens are
-/// whitespace-split) and name collisions get a `-1`, `-2`, … suffix instead
-/// of overwriting an existing attachment.
-pub fn copy_into_assets(src: &Path, assets_dir: &Path) -> std::io::Result<String> {
+/// Move `src` into `assets_dir`, returning the destination file name to use
+/// in the `at:` token. The original is removed — the project folder becomes
+/// the attachment's home, so cleaning up the Downloads copy can't break the
+/// link. Whitespace in the name is dashed (todo.txt tokens are whitespace-
+/// split) and name collisions get a `-1`, `-2`, … suffix instead of
+/// overwriting an existing attachment.
+pub fn move_into_assets(src: &Path, assets_dir: &Path) -> std::io::Result<String> {
     let file_name = src
         .file_name()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a file path"))?
@@ -95,7 +97,13 @@ pub fn copy_into_assets(src: &Path, assets_dir: &Path) -> std::io::Result<String
             None => format!("{stem}-{n}"),
         };
     }
-    std::fs::copy(src, assets_dir.join(&dest_name))?;
+    let dest = assets_dir.join(&dest_name);
+    // Prefer a true move; fall back to copy+remove when the source lives on
+    // another volume (rename can't cross filesystems).
+    if std::fs::rename(src, &dest).is_err() {
+        std::fs::copy(src, &dest)?;
+        std::fs::remove_file(src)?;
+    }
     Ok(dest_name)
 }
 
@@ -212,13 +220,14 @@ mod tests {
     }
 
     #[test]
-    fn copies_file_and_dashes_spaces() {
+    fn moves_file_and_dashes_spaces() {
         let (src_dir, assets) = temp_assets();
         let src = src_dir.join("client brief.pdf");
         std::fs::write(&src, b"pdf").expect("write src");
-        let name = copy_into_assets(&src, &assets).expect("copy");
+        let name = move_into_assets(&src, &assets).expect("move");
         assert_eq!(name, "client-brief.pdf");
         assert_eq!(std::fs::read(assets.join(&name)).expect("dest"), b"pdf");
+        assert!(!src.exists(), "attach moves, not copies");
     }
 
     #[test]
@@ -226,9 +235,9 @@ mod tests {
         let (src_dir, assets) = temp_assets();
         let src = src_dir.join("a.png");
         std::fs::write(&src, b"1").expect("write src");
-        assert_eq!(copy_into_assets(&src, &assets).expect("copy"), "a.png");
+        assert_eq!(move_into_assets(&src, &assets).expect("copy"), "a.png");
         std::fs::write(&src, b"2").expect("rewrite src");
-        assert_eq!(copy_into_assets(&src, &assets).expect("copy"), "a-1.png");
+        assert_eq!(move_into_assets(&src, &assets).expect("copy"), "a-1.png");
         assert_eq!(std::fs::read(assets.join("a.png")).expect("dest"), b"1");
         assert_eq!(std::fs::read(assets.join("a-1.png")).expect("dest"), b"2");
     }
