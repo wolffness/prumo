@@ -23,8 +23,9 @@ cp packaging/tuxedo.icns "$APP/Contents/Resources/tuxedo.icns"
 cp scripts/capture-inbox.sh "$APP/Contents/Resources/tuxedo-capture.sh"
 chmod +x "$APP/Contents/Resources/tuxedo-capture.sh"
 
-# Quick-capture hotkey window (⌥Space): its own dynamic profile so iTerm2
-# registers the global hotkey. Key code 49 = Space; modifier 524288 = ⌥.
+# Quick-capture hotkey window (⌥]): its own dynamic profile so iTerm2
+# registers the global hotkey. Key code 30 = ]; modifier 524288 = ⌥.
+# (⌥Space was taken by Raycast on this machine.)
 DYN_DIR="$HOME/Library/Application Support/iTerm2/DynamicProfiles"
 mkdir -p "$DYN_DIR"
 cat > "$DYN_DIR/tuxedo-capture.json" <<PROFILE
@@ -38,10 +39,10 @@ cat > "$DYN_DIR/tuxedo-capture.json" <<PROFILE
       "Custom Command": "Yes",
       "Command": "/bin/zsh -lc 'exec \\"/Applications/Tuxedo.app/Contents/Resources/tuxedo-capture.sh\\"'",
       "Has Hotkey": true,
-      "HotKey Key Code": 49,
+      "HotKey Key Code": 30,
       "HotKey Modifier Flags": 524288,
-      "HotKey Characters": " ",
-      "HotKey Characters Ignoring Modifiers": " ",
+      "HotKey Characters": "]",
+      "HotKey Characters Ignoring Modifiers": "]",
       "HotKey Window Autohides": true,
       "HotKey Window Animates": true,
       "HotKey Window Floats": true,

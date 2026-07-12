@@ -1362,6 +1362,14 @@ mod tests {
     }
 
     #[test]
+    fn parses_amanha_with_trailing_time() {
+        let today = d("2026-05-11");
+        let parsed = try_parse("corrigir agenda amanhã às 19:00", today).unwrap();
+        assert_eq!(parsed.due, Some(d("2026-05-12")));
+        assert_eq!(parsed.body, "corrigir agenda às 19:00");
+    }
+
+    #[test]
     fn portuguese_verb_ter_is_not_a_weekday() {
         let today = d("2026-05-11");
         // "ter" (to have) must not parse as terça; without any other
