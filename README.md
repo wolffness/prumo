@@ -17,6 +17,46 @@ brew install tuxedo
 
 For a more in-depth walkthrough, please watch [this video](https://www.youtube.com/watch?v=mT1tg6SQ_Ag) by [@IogaMaster](https://github.com/IogaMaster).
 
+## About this fork
+
+This fork ([wolffness/tuxedo](https://github.com/wolffness/tuxedo)) layers a
+set of personal-workflow features on top of
+[webstonehq/tuxedo](https://github.com/webstonehq/tuxedo). Everything below
+is fork-only; the upstream docs that follow still apply.
+
+- **In-app note panel (`m`).** View and edit a task's Markdown note in a
+  popup without leaving the TUI: vim-style view/insert modes, visual-row
+  cursor motion through wrapped lines, Shift+arrow selection with
+  delete/replace, auto-save on close. `o` still hands off to `$EDITOR`.
+- **Subtasks.** Checkbox lines (`- [ ]` / `- [x]`) inside a task's note are
+  subtasks: `n` in the panel starts one, Enter continues the list, Space or
+  a mouse click toggles them (in the panel *and* in the DETAIL pane). The
+  list shows an amber `[done/total]` badge and the DETAIL pane an amber
+  progress bar. Completed subtasks render dim + struck-through.
+- **File attachments (`t`).** Drop a file onto the prompt (or type a path)
+  and it is *moved* into an `assets/` directory next to the todo file, with
+  an `at:<name>` token appended to the task. Click the file name in the
+  DETAIL pane (or press Enter on the task) to open it.
+- **Completion log.** `x` stamps a `done_at:YYYY-MM-DDTHH:MM` token and
+  archives the task to `done.txt` immediately; the archive view (`a`)
+  honors `/` search and project/context filters, so past completions stay
+  findable.
+- **Portuguese natural language.** The NL parser understands pt-BR
+  alongside English: `amanhã`, `hoje`, weekday names, `para/até sexta`,
+  `em 3 dias`, `15 de junho`, `toda sexta`, `a cada 15 dias`,
+  `todo dia 2` (monthly anchored on a day), `quinzenalmente`, and more.
+- **Phosphor Green theme.** A monochrome CRT-style theme ships built-in and
+  is the factory default; the classic amber accents mark subtask progress.
+  On bright cursor backgrounds the selected row flips to reverse video.
+- **macOS app bundle.** `./scripts/package-macos.sh` builds and installs
+  `/Applications/Tuxedo.app` — pixel-art CRT icon, opens in iTerm2 (or
+  Terminal.app) with an IBM Plex Mono phosphor profile, honors
+  `TODO_FILE`/`TODO_DIR` from your login shell.
+- **Native quick capture (`⌥]`).** A tiny AppKit agent (installed by the
+  packaging script, started at login) shows an OmniFocus-style floating
+  panel from any app; entries land in the sibling `inbox.txt` and flow into
+  the list through the existing inbox drain, natural language included.
+
 ## Highlights
 
 - **Pure todo.txt.** Reads and writes the [standard format](https://github.com/todotxt/todo.txt) — every line is plain text you can edit with anything else.
@@ -367,7 +407,7 @@ chords like `ZZ`, modifier forms like `Ctrl-n` / `Alt-x`, named keys like
 | `n` | add task |
 | `e` | edit current task in Normal mode (see [Edit dialog](#edit-dialog)) |
 | `i` | edit current task in Insert mode (see [Edit dialog](#edit-dialog)) |
-| `x` | toggle complete |
+| `x` | complete: stamps `done_at:` and archives to `done.txt` |
 | `dd` | delete task |
 | `p` | cycle priority A → B → C → · |
 | `c` | add or remove a context |
@@ -421,7 +461,8 @@ The modal keys below apply in Normal mode:
 | `o` | open the current task's existing `note:<path>` in `$VISUAL` / `$EDITOR` |
 | `O` | create the current task's note if needed, then open it |
 | `m` / `N` | open the note in an in-app panel (view + edit, saves on close) |
-| `t` | attach a file: drag it onto the prompt or type a path (copied to `assets/`) |
+| `Space` / `n` (in panel) | toggle / start a subtask checkbox |
+| `t` | attach a file: drag it onto the prompt or type a path (moved to `assets/`) |
 | `Enter` | open the current task's `at:` attachments with the system opener |
 
 ### Layout & theme
