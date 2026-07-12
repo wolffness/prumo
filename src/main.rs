@@ -1527,13 +1527,15 @@ mod tests {
         let mut app = App::new(todo, raw.to_string(), "2026-05-06".into(), cfg);
         let kb = KeyBindings::default();
 
-        handle_key(&mut app, key('N'), &kb);
-        assert_eq!(app.mode, Mode::Note, "N should open the note panel");
+        handle_key(&mut app, key('m'), &kb);
+        assert_eq!(app.mode, Mode::Note, "m should open the note panel");
         let task_raw = app.tasks()[0].raw.clone();
         assert!(task_raw.contains("note:"), "note token appended: {task_raw}");
+        assert!(
+            app.note_panel.as_ref().is_some_and(|p| p.insert),
+            "blank panel-created note starts in insert mode"
+        );
 
-        handle_key(&mut app, key('G'), &kb); // jump to last line of template
-        handle_key(&mut app, key('i'), &kb);
         for c in "hello código".chars() {
             handle_key(&mut app, key(c), &kb);
         }

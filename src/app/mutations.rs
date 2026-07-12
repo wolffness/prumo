@@ -164,20 +164,26 @@ impl App {
     }
 
     fn open_note_for_current_with_create(&mut self, create: bool) {
-        if let Some((path, _task)) = self.ensure_note_for_current(create) {
+        if let Some((path, _task)) = self.ensure_note_for_current(create, false) {
             self.queue_editor_path(path);
         }
     }
 
     /// Open the in-TUI note panel for the task under the cursor, creating the
-    /// note (and its `note:` token) like `O` does when it doesn't exist yet.
+    /// note (and its `note:` token) when it doesn't exist yet. Panel-created
+    /// notes start blank — the panel is for jotting the note itself, not the
+    /// full Markdown template the external-editor flow (`O`) scaffolds — and
+    /// an empty note drops straight into insert mode.
     pub fn open_note_panel_for_current(&mut self) {
-        let Some((path, task)) = self.ensure_note_for_current(true) else {
+        let Some((path, task)) = self.ensure_note_for_current(true, true) else {
             return;
         };
         let title = crate::todo::body_only(&task.raw);
         match super::NotePanel::load(path, title) {
-            Ok(panel) => {
+            Ok(mut panel) => {
+                if panel.lines.iter().all(|l| l.trim().is_empty()) {
+                    panel.insert = true;
+                }
                 self.note_panel = Some(panel);
                 self.mode = super::Mode::Note;
             }
@@ -185,11 +191,16 @@ impl App {
         }
     }
 
-    /// Shared note-resolution arc for `o`/`O`/`N`: resolve the task's note
-    /// target, optionally appending the `note:` token and creating the file
-    /// from the template. Returns the note path once it exists on disk.
-    /// Flash messages for every abort live here so all entry points agree.
-    fn ensure_note_for_current(&mut self, create: bool) -> Option<(std::path::PathBuf, crate::todo::Task)> {
+    /// Shared note-resolution arc for `o`/`O`/`m`: resolve the task's note
+    /// target, optionally appending the `note:` token and creating the file —
+    /// blank or from the template. Returns the note path once it exists on
+    /// disk. Flash messages for every abort live here so all entry points
+    /// agree.
+    fn ensure_note_for_current(
+        &mut self,
+        create: bool,
+        blank: bool,
+    ) -> Option<(std::path::PathBuf, crate::todo::Task)> {
         let task = self.cur_task().cloned()?;
         let target = note::target_for_task(&task, self.notes_dir());
 
@@ -232,7 +243,12 @@ impl App {
             self.flash(format!("note mkdir failed: {e}"));
             return None;
         }
-        if let Err(e) = std::fs::write(&target.path, note::note_template(&task)) {
+        let initial = if blank {
+            String::new()
+        } else {
+            note::note_template(&task)
+        };
+        if let Err(e) = std::fs::write(&target.path, initial) {
             self.flash(format!("note create failed: {e}"));
             return None;
         }
