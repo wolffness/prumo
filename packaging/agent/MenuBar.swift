@@ -7,6 +7,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onNewTask: () -> Void
     private var current = Summary(overdue: [], today: [])
     private let maxPerGroup = 5
+    private var watchSource: DispatchSourceFileSystemObject?
+    private var watchedFD: Int32 = -1
+    private var midnightTimer: Timer?
 
     init(onNewTask: @escaping () -> Void) {
         self.onNewTask = onNewTask
@@ -18,6 +21,52 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
         refresh()
+        startWatching()
+        scheduleMidnight()
+    }
+
+    /// Watch TODO_FILE for external writes (TUI saves, CLI edits, inbox drains
+    /// land here after merge). Editors that replace the file break the fd, so we
+    /// re-arm on cancel.
+    private func startWatching() {
+        let path = resolveTodoFile().path
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        watchedFD = fd
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .delete, .rename, .extend],
+            queue: DispatchQueue.global())
+        src.setEventHandler { [weak self] in
+            self?.refresh()
+            if let s = self, s.watchSource?.data.contains(.delete) == true
+                || s.watchSource?.data.contains(.rename) == true {
+                s.watchSource?.cancel()
+            }
+        }
+        src.setCancelHandler { [weak self] in
+            if let self, self.watchedFD >= 0 { close(self.watchedFD); self.watchedFD = -1 }
+            // Atomic-save replaced the file: re-arm shortly.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.startWatching()
+            }
+        }
+        watchSource = src
+        src.resume()
+    }
+
+    /// Recompute overdue/today when the date rolls over.
+    private func scheduleMidnight() {
+        midnightTimer?.invalidate()
+        let cal = Calendar.current
+        guard let next = cal.nextDate(after: Date(),
+              matching: DateComponents(hour: 0, minute: 0, second: 5),
+              matchingPolicy: .nextTime) else { return }
+        let t = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
+            self?.refresh()
+            self?.scheduleMidnight()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        midnightTimer = t
     }
 
     /// Re-fetch tasks and repaint the icon. Safe to call from any thread; hops
