@@ -154,12 +154,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// Strip the leading "(A) " priority and any "due:" token for a clean label.
+    /// Clean label for a menu row: drop the leading "(A) " priority and the
+    /// leading creation date, and strip the metadata key:value tokens tuxedo
+    /// adds (due/t/rec/note/at). Keeps +projects and @contexts, which are short
+    /// and meaningful. The key list is explicit so plain URLs (http:, https:)
+    /// in the task text survive.
     private func displayText(_ task: TodoTask) -> String {
         var s = task.raw
         if let p = task.priority { s = s.replacingOccurrences(of: "(\(p)) ", with: "") }
         s = s.replacingOccurrences(
-            of: #"\s*due:\d{4}-\d{2}-\d{2}"#, with: "",
+            of: #"^\d{4}-\d{2}-\d{2}\s+"#, with: "",
+            options: .regularExpression)
+        s = s.replacingOccurrences(
+            of: #"\s*\b(?:due|t|rec|note|at):\S+"#, with: "",
             options: .regularExpression)
         return s.trimmingCharacters(in: .whitespaces)
     }
