@@ -68,9 +68,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(none)
         }
         menu.addItem(.separator())
-        // Actions are attached in a later task; placeholders keep the layout visible.
-        menu.addItem(NSMenuItem(title: "Abrir Tuxedo", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Nova tarefa…", action: nil, keyEquivalent: ""))
+        let open = NSMenuItem(title: "Abrir Tuxedo", action: #selector(openTuxedo), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+        let new = NSMenuItem(title: "Nova tarefa…", action: #selector(newTask), keyEquivalent: "")
+        new.target = self
+        menu.addItem(new)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Sair", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
@@ -96,8 +99,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         if overdue, let d = task.due, let days = daysAgo(d) {
             label += "   −\(days)d"
         }
-        let item = NSMenuItem(title: label, action: nil, keyEquivalent: "")
-        item.representedObject = task.raw   // used in a later task to re-locate the task
+        let item = NSMenuItem(title: label, action: #selector(completeTask(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = task.raw   // matched on click to re-locate the task
         return item
     }
 
@@ -116,4 +120,32 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard let d = f.date(from: due), let t = f.date(from: todayString()) else { return nil }
         return Calendar.current.dateComponents([.day], from: d, to: t).day
     }
+
+    /// Complete a task. Anti-race: re-fetch and match by raw text (positions
+    /// shift when the file changes), then `tuxedo done <current n>`.
+    @objc private func completeTask(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        DispatchQueue.global().async { [weak self] in
+            let fresh = fetchTasks()
+            guard let match = fresh.first(where: { $0.raw == raw && !$0.done }) else {
+                self?.refresh(); return
+            }
+            let p = Process()
+            p.executableURL = resolveTuxedoBinary()
+            p.arguments = ["done", String(match.n)]
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try? p.run()
+            p.waitUntilExit()
+            self?.refresh()
+        }
+    }
+
+    @objc private func openTuxedo() {
+        NSWorkspace.shared.openApplication(
+            at: URL(fileURLWithPath: "/Applications/Tuxedo.app"),
+            configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    @objc private func newTask() { onNewTask() }
 }
