@@ -10,9 +10,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var watchSource: DispatchSourceFileSystemObject?
     private var watchedFD: Int32 = -1
     private var midnightTimer: Timer?
+    /// Resolved once at startup (spawns a login shell — expensive), then reused
+    /// for every fetch/watch/complete so we never block the main thread on it.
+    private let todoFile: URL
 
     init(onNewTask: @escaping () -> Void) {
         self.onNewTask = onNewTask
+        self.todoFile = resolveTodoFile()
         super.init()
     }
 
@@ -29,7 +33,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// land here after merge). Editors that replace the file break the fd, so we
     /// re-arm on cancel.
     private func startWatching() {
-        let path = resolveTodoFile().path
+        let path = todoFile.path
         let fd = open(path, O_EVTONLY)
         guard fd >= 0 else { return }
         watchedFD = fd
@@ -69,14 +73,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         midnightTimer = t
     }
 
-    /// Re-fetch tasks and repaint the icon. Safe to call from any thread; hops
-    /// to main for UI.
+    /// Re-fetch tasks and repaint the icon. Fully async: the fetch runs on a
+    /// background queue (never blocks the main thread / menu tracking) and only
+    /// the UI mutation hops to main.
     func refresh() {
-        let tasks = fetchTasks()
-        let summary = computeSummary(tasks, today: todayString())
-        DispatchQueue.main.async { [weak self] in
-            self?.current = summary
-            self?.renderIcon()
+        let file = todoFile
+        DispatchQueue.global().async { [weak self] in
+            let summary = computeSummary(fetchTasks(todoFile: file), today: todayString())
+            DispatchQueue.main.async {
+                self?.current = summary
+                self?.renderIcon()
+            }
         }
     }
 
@@ -85,26 +92,29 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let mono = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
         switch current.iconState {
         case .empty:
+            // All clear: a green check.
             button.attributedTitle = NSAttributedString(
-                string: "☰",
-                attributes: [.foregroundColor: Theme.phosphorDim, .font: mono])
+                string: "✓",
+                attributes: [.foregroundColor: Theme.phosphor, .font: mono])
         case .normal:
             button.attributedTitle = NSAttributedString(
-                string: "☰ \(current.actionable)",
+                string: "● \(current.actionable)",
                 attributes: [.foregroundColor: Theme.phosphor, .font: mono])
         case .alert:
             button.attributedTitle = NSAttributedString(
-                string: "☰ \(current.actionable)",
+                string: "● \(current.actionable)",
                 attributes: [.foregroundColor: Theme.amber, .font: mono])
         }
     }
 
-    // NSMenuDelegate: rebuild the menu right before it opens, from fresh data.
+    // NSMenuDelegate: build the dropdown from the cached summary — instant, and
+    // crucially WITHOUT re-fetching or repainting the status button here (both
+    // stall or dismiss the menu as it opens). A background refresh updates the
+    // cache + icon for the next open.
     func menuNeedsUpdate(_ menu: NSMenu) {
-        let tasks = fetchTasks()
-        current = computeSummary(tasks, today: todayString())
-        renderIcon()
+        NSLog("[TuxedoAgent] menuNeedsUpdate fired (overdue=\(current.overdue.count) today=\(current.today.count))")
         rebuildMenu(menu)
+        refresh()
     }
 
     private func rebuildMenu(_ menu: NSMenu) {
@@ -142,15 +152,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    /// A single task row: "☐ <text>   −Nd" for overdue, "☐ <text>" for today.
+    /// A task row with two click zones (see TaskRowView): the circle completes,
+    /// the text opens the task.
     private func taskItem(_ task: TodoTask, overdue: Bool) -> NSMenuItem {
-        var label = "☐ " + displayText(task)
-        if overdue, let d = task.due, let days = daysAgo(d) {
-            label += "   −\(days)d"
-        }
-        let item = NSMenuItem(title: label, action: #selector(completeTask(_:)), keyEquivalent: "")
-        item.target = self
-        item.representedObject = task.raw   // matched on click to re-locate the task
+        var trailing = ""
+        if overdue, let d = task.due, let days = daysAgo(d) { trailing = "−\(days)d" }
+        let item = NSMenuItem()
+        item.view = TaskRowView(
+            text: displayText(task),
+            trailing: trailing,
+            onComplete: { [weak self] in self?.complete(raw: task.raw) },
+            onOpen: { [weak self] in self?.openTask(task) })
         return item
     }
 
@@ -179,22 +191,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Complete a task. Anti-race: re-fetch and match by raw text (positions
     /// shift when the file changes), then `tuxedo done <current n>`.
-    @objc private func completeTask(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String else { return }
+    private func complete(raw: String) {
+        let file = todoFile
         DispatchQueue.global().async { [weak self] in
-            let fresh = fetchTasks()
+            let fresh = fetchTasks(todoFile: file)
             guard let match = fresh.first(where: { $0.raw == raw && !$0.done }) else {
                 self?.refresh(); return
             }
             let p = Process()
             p.executableURL = resolveTuxedoBinary()
             p.arguments = ["done", String(match.n)]
+            var env = ProcessInfo.processInfo.environment
+            env["TODO_FILE"] = file.path
+            p.environment = env
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
             try? p.run()
             p.waitUntilExit()
             self?.refresh()
         }
+    }
+
+    /// Open the task's text zone. v1 opens the app; jumping straight to this
+    /// task's detail is a planned follow-up (needs a `--goto` in the TUI).
+    private func openTask(_ task: TodoTask) {
+        openTuxedo()
     }
 
     @objc private func openTuxedo() {

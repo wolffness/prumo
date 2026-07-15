@@ -32,6 +32,7 @@ swiftc -O -o "$AGENTAPP/Contents/MacOS/TuxedoAgent" \
     packaging/agent/Paths.swift \
     packaging/agent/Theme.swift \
     packaging/agent/Summary.swift \
+    packaging/agent/TaskRowView.swift \
     packaging/agent/CapturePanel.swift \
     packaging/agent/MenuBar.swift \
     packaging/agent/main.swift \
@@ -107,6 +108,14 @@ rm -rf /Applications/Tuxedo.app
 cp -R "$APP" /Applications/
 rm -rf "$APP"
 touch /Applications/Tuxedo.app
+
+# Kill any launcher still running from a PREVIOUS install. Reinstalling only
+# replaces the binary on disk; a launcher already in memory keeps handling
+# Dock/"open" launches with its old code (LaunchServices routes to the running
+# instance), so a fix never takes effect until the stale process is gone.
+# The launcher doesn't own the TUI window (iTerm/Terminal does), so killing it
+# never closes an open task list; the next launch just spawns the new binary.
+pkill -f "Contents/MacOS/tuxedo-launcher" 2>/dev/null || true
 
 # Migrate the pre-rename capture agent, then (re)install the unified agent.
 OLD_AGENT="$HOME/Library/LaunchAgents/dev.wolffness.tuxedo.capture.plist"
