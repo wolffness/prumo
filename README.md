@@ -56,6 +56,14 @@ is fork-only; the upstream docs that follow still apply.
   packaging script, started at login) shows an OmniFocus-style floating
   panel from any app; entries land in the sibling `inbox.txt` and flow into
   the list through the existing inbox drain, natural language included.
+- **Menu bar summary.** The same agent puts an icon in the macOS menu bar
+  showing how many dated tasks you have, by urgency: `⚠ N` (overdue) in
+  orange, `● N` (due today), `○ N` (upcoming), or `✓` when nothing is
+  pending. State is carried by the symbol, not color alone, and colors are
+  high-contrast — legible and color-blind safe. The dropdown groups tasks
+  into **ATRASADAS / HOJE / PRÓXIMAS**; click a row's circle to complete it
+  (`tuxedo done`) or its text to open the app. Reads the list from
+  `tuxedo ls --json`, so the Rust core stays the single source of truth.
 
 | Subtasks: amber `[2/4]` badge in the list, progress bar + clickable checkboxes in DETAIL | The in-app note panel (`m`) over the same task |
 | --- | --- |
