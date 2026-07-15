@@ -91,12 +91,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         let mono = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
         let n = current.totalDated
+        // Accessible: STATE is carried by the SYMBOL (⚠/●/○/✓), so it reads
+        // without relying on color discrimination (color-blind safe). Colors
+        // are high-contrast: labelColor adapts black/white to the menu bar;
+        // overdue adds systemOrange, which stays distinct from labelColor for
+        // red-green color blindness.
         let (text, color): (String, NSColor)
         switch current.iconState {
-        case .clear:    (text, color) = ("✓", Theme.phosphor)       // nothing dated
-        case .upcoming: (text, color) = ("● \(n)", Theme.phosphorDim) // only future
-        case .today:    (text, color) = ("● \(n)", Theme.phosphor)    // due today
-        case .overdue:  (text, color) = ("● \(n)", Theme.amber)       // has overdue
+        case .clear:    (text, color) = ("✓", .labelColor)               // nothing dated
+        case .upcoming: (text, color) = ("○ \(n)", .labelColor)          // only future
+        case .today:    (text, color) = ("● \(n)", .labelColor)          // due today
+        case .overdue:  (text, color) = ("⚠ \(n)", .systemOrange)        // has overdue
         }
         button.attributedTitle = NSAttributedString(
             string: text, attributes: [.foregroundColor: color, .font: mono])

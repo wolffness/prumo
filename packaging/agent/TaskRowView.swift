@@ -57,19 +57,23 @@ final class TaskRowView: NSView {
                          xRadius: 5, yRadius: 5).fill()
         }
         let onHi = hovering
-        // Circle → check on circle-hover.
+        // Circle → check on circle-hover. High-contrast only: labelColor
+        // (adapts black/white), white on the selection highlight. No low-
+        // contrast tints, for legibility and color-blind safety.
         let glyph = overCircle ? "✓" : "○"
-        let circleColor: NSColor = overCircle ? Theme.phosphor
-            : (onHi ? .white : Theme.phosphorDim)
+        let circleColor: NSColor = onHi ? .white : .labelColor
         draw(glyph, x: 10, maxX: circleZoneWidth, color: circleColor, bold: overCircle)
         // Task text.
         draw(text, x: 32, maxX: bounds.width - 44,
              color: onHi ? .white : .labelColor, bold: false)
-        // Overdue badge, right-aligned.
+        // Due badge, right-aligned: overdue ("−Nd") in systemOrange (distinct
+        // from labelColor for red-green color blindness), upcoming ("+Nd")
+        // neutral. White on the selection highlight.
         if !trailing.isEmpty {
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: font, .foregroundColor: onHi ? NSColor.white : Theme.amber]
-            let s = NSAttributedString(string: trailing, attributes: attrs)
+            let overdue = trailing.hasPrefix("−")
+            let color: NSColor = onHi ? .white
+                : (overdue ? .systemOrange : .secondaryLabelColor)
+            let s = NSAttributedString(string: trailing, attributes: [.font: font, .foregroundColor: color])
             s.draw(at: NSPoint(x: bounds.width - s.size().width - 12,
                                y: (bounds.height - s.size().height) / 2))
         }
