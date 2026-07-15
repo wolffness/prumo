@@ -14,21 +14,48 @@ final class Launcher: NSObject, NSApplicationDelegate {
         watchForExit()
     }
 
-    /// Dock icon clicked while running: focus the terminal if tuxedo is
-    /// alive, otherwise open a fresh window.
+    /// Dock icon clicked while running: bring the existing Tuxedo window to the
+    /// front if tuxedo is alive, otherwise open a fresh window.
     func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if tuxedoRunning() {
-            let term = FileManager.default.fileExists(atPath: "/Applications/iTerm.app")
-                ? "/Applications/iTerm.app"
-                : "/System/Applications/Utilities/Terminal.app"
-            NSWorkspace.shared.openApplication(
-                at: URL(fileURLWithPath: term),
-                configuration: NSWorkspace.OpenConfiguration()
-            )
+            focusExistingWindow()
         } else {
             openWindow()
         }
         return false
+    }
+
+    /// Raise the specific terminal window running Tuxedo. openWindow names the
+    /// session "Tuxedo", so we select that exact window/tab; `activate` alone
+    /// would only surface iTerm's last-used window, which may be unrelated
+    /// work. If the named session isn't found (e.g. the title was overwritten),
+    /// activate still brought the terminal forward.
+    func focusExistingWindow() {
+        let script: String
+        if FileManager.default.fileExists(atPath: "/Applications/iTerm.app") {
+            script = """
+            tell application "iTerm2"
+                activate
+                repeat with w in windows
+                    repeat with t in tabs of w
+                        repeat with s in sessions of t
+                            if name of s contains "Tuxedo" then
+                                select w
+                                select t
+                                return
+                            end if
+                        end repeat
+                    end repeat
+                end repeat
+            end tell
+            """
+        } else {
+            script = "tell application \"Terminal\" to activate"
+        }
+        DispatchQueue.global().async {
+            var error: NSDictionary?
+            NSAppleScript(source: script)?.executeAndReturnError(&error)
+        }
     }
 
     func openWindow() {
@@ -41,7 +68,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 set opened to false
                 repeat with i from 1 to 20
                     try
-                        create window with profile "Tuxedo"
+                        set tuxWin to (create window with profile "Tuxedo")
+                        tell current session of tuxWin to set name to "Tuxedo"
                         set opened to true
                         exit repeat
                     on error
@@ -50,7 +78,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 end repeat
                 if not opened then
                     set w to (create window with default profile)
-                    tell current session of w to write text "cd \\"$HOME\\"; clear; exec '\(bin)'"
+                    tell current session of w
+                        set name to "Tuxedo"
+                        write text "cd \\"$HOME\\"; clear; exec '\(bin)'"
+                    end tell
                 end if
             end tell
             """
