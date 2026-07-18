@@ -204,6 +204,13 @@ fn contains_trigger(text: &str) -> bool {
         "starting",
         "due",
         "by",
+        "projeto",
+        "contexto",
+        "prioridade",
+        "antes",
+        "mostrar",
+        "exibir",
+        "avisar",
     ];
 
     for w in &words {
@@ -437,19 +444,25 @@ fn pass_threshold(scratch: &mut Scratch, p: &mut ParsedNl) {
             i += 1;
             continue;
         }
-        if scratch.word_lc(words[i + 2]) != "before" {
+        // Anchor word: "before" (en) or "antes" (pt).
+        if !matches!(scratch.word_lc(words[i + 2]), "before" | "antes") {
             i += 1;
             continue;
         }
 
-        // Look backward for "show [the (todo|task|item)] [me|it]" preamble.
+        // Look backward for a "show [the (todo|task|item)] [me|it]" preamble
+        // (en) or "mostrar/exibir/avisar [o|a|todo|tarefa|item] [me]" (pt).
         let mut start_word = i;
-        const PREAMBLE: &[&str] = &["show", "the", "todo", "task", "item", "me", "it"];
+        const PREAMBLE: &[&str] = &[
+            "show", "the", "todo", "task", "item", "me", "it", // en
+            "mostrar", "exibir", "avisar", "o", "a", "tarefa", // pt
+        ];
+        const SHOW_MARKERS: &[&str] = &["show", "mostrar", "exibir", "avisar"];
         let mut saw_show = false;
         while start_word > 0 {
             let w = scratch.word_lc(words[start_word - 1]);
             if PREAMBLE.contains(&w) {
-                if w == "show" {
+                if SHOW_MARKERS.contains(&w) {
                     saw_show = true;
                 }
                 start_word -= 1;
@@ -461,9 +474,20 @@ fn pass_threshold(scratch: &mut Scratch, p: &mut ParsedNl) {
             start_word = i;
         }
 
-        // Look forward through "[the] [due] [date]".
+        // Look forward through "[the] [due] [date]" (en) or
+        // "[do|da] [vencimento|vencer|prazo|data]" (pt).
         let mut end_word = i + 3;
-        const TRAILERS: &[&str] = &["the", "due", "date"];
+        const TRAILERS: &[&str] = &[
+            "the",
+            "due",
+            "date", // en
+            "do",
+            "da",
+            "vencimento",
+            "vencer",
+            "prazo",
+            "data", // pt
+        ];
         while end_word < words.len() {
             let w = scratch.word_lc(words[end_word]);
             if TRAILERS.contains(&w) {
@@ -1085,8 +1109,8 @@ fn pass_project_context(scratch: &mut Scratch, p: &mut ParsedNl) {
             continue;
         }
         let w = scratch.word_lc(words[i]);
-        let is_project = w == "project" || w == "proj";
-        let is_context = w == "context" || w == "ctx";
+        let is_project = matches!(w, "project" | "proj" | "projeto");
+        let is_context = matches!(w, "context" | "ctx" | "contexto");
         if !is_project && !is_context {
             i += 1;
             continue;
@@ -1105,9 +1129,10 @@ fn pass_project_context(scratch: &mut Scratch, p: &mut ParsedNl) {
             i += 1;
             continue;
         }
-        // Walk back over connector words ("and", "part", "of", "for", "in", "it's", "the").
+        // Walk back over connector words, en + pt.
         const CONNECTORS: &[&str] = &[
-            "and", "or", "part", "of", "for", "in", "the", "it's", "its", "a", "an",
+            "and", "or", "part", "of", "for", "in", "the", "it's", "its", "a", "an", // en
+            "e", "ou", "de", "do", "da", "para", "no", "na", "parte", "o", "os", "as", // pt
         ];
         let mut start_word = i;
         while start_word > 0 {
@@ -1147,21 +1172,20 @@ fn pass_priority(scratch: &mut Scratch, p: &mut ParsedNl) {
             continue;
         }
         let w = scratch.word_lc(words[i]);
+        // "prioridade" mirrors "priority" as the noun marker.
+        let is_prio_word = |x: Option<&str>| matches!(x, Some("priority") | Some("prioridade"));
+        let next = next_lc(scratch, &words, i + 1);
         let prio = match w {
-            "high" | "highest" if next_lc(scratch, &words, i + 1) == Some("priority") => {
-                Some(('A', 2))
-            }
-            "medium" | "med" if next_lc(scratch, &words, i + 1) == Some("priority") => {
-                Some(('B', 2))
-            }
-            "low" if next_lc(scratch, &words, i + 1) == Some("priority") => Some(('C', 2)),
-            "priority" => match next_lc(scratch, &words, i + 1) {
+            "high" | "highest" | "alta" if is_prio_word(next) => Some(('A', 2)),
+            "medium" | "med" | "media" | "m\u{e9}dia" if is_prio_word(next) => Some(('B', 2)),
+            "low" | "baixa" if is_prio_word(next) => Some(('C', 2)),
+            "priority" | "prioridade" => match next {
                 Some("a") => Some(('A', 2)),
                 Some("b") => Some(('B', 2)),
                 Some("c") => Some(('C', 2)),
-                Some("high") | Some("highest") => Some(('A', 2)),
-                Some("medium") | Some("med") => Some(('B', 2)),
-                Some("low") => Some(('C', 2)),
+                Some("high") | Some("highest") | Some("alta") => Some(('A', 2)),
+                Some("medium") | Some("med") | Some("media") | Some("m\u{e9}dia") => Some(('B', 2)),
+                Some("low") | Some("baixa") => Some(('C', 2)),
                 _ => None,
             },
             _ => None,
@@ -1626,5 +1650,61 @@ mod tests {
                 "t value {t:?} from {input:?} failed threshold::parse_threshold"
             );
         }
+    }
+
+    // ----- Portuguese prose: priority / project / context / threshold ----
+
+    #[test]
+    fn parses_portuguese_priority_prose() {
+        let today = d("2026-05-11");
+        for (input, prio) in [
+            ("Revisar contrato prioridade alta", 'A'),
+            ("Revisar contrato prioridade média", 'B'),
+            ("Revisar contrato prioridade media", 'B'),
+            ("Revisar contrato prioridade baixa", 'C'),
+            ("Revisar contrato prioridade a", 'A'),
+            ("Revisar contrato alta prioridade", 'A'),
+            ("Revisar contrato baixa prioridade", 'C'),
+        ] {
+            let parsed =
+                try_parse(input, today).unwrap_or_else(|| panic!("no parse for {input:?}"));
+            assert_eq!(parsed.priority, Some(prio), "input {input:?}");
+            assert_eq!(parsed.body, "Revisar contrato", "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn parses_portuguese_project_context_prose() {
+        let today = d("2026-05-11");
+        let parsed = try_parse("Comprar tinta projeto casa e contexto loja", today).unwrap();
+        assert_eq!(parsed.body, "Comprar tinta");
+        assert_eq!(parsed.projects, vec!["casa".to_string()]);
+        assert_eq!(parsed.contexts, vec!["loja".to_string()]);
+    }
+
+    #[test]
+    fn parses_portuguese_threshold_prose() {
+        let today = d("2026-05-11");
+        let parsed = try_parse("Pagar boleto amanhã mostrar 3 dias antes", today).unwrap();
+        assert_eq!(parsed.body, "Pagar boleto");
+        assert_eq!(parsed.due, Some(d("2026-05-12")));
+        assert_eq!(parsed.threshold.as_deref(), Some("-3d"));
+
+        let parsed = try_parse("Pagar boleto amanhã 2 semanas antes do vencimento", today).unwrap();
+        assert_eq!(parsed.body, "Pagar boleto");
+        assert_eq!(parsed.threshold.as_deref(), Some("-2w"));
+    }
+
+    #[test]
+    fn portuguese_full_prose_line_formats_canonically() {
+        let today = d("2026-05-11");
+        // today is a Monday; "toda sexta" anchors the first due to Friday.
+        let input = "Pagar aluguel toda sexta mostrar 3 dias antes projeto casa e contexto banco prioridade alta";
+        let parsed = try_parse(input, today).unwrap();
+        let out = format_as_todo_txt(&parsed);
+        assert_eq!(
+            out,
+            "(A) Pagar aluguel +casa @banco due:2026-05-15 rec:+1w t:-3d"
+        );
     }
 }
