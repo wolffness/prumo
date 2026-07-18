@@ -16,7 +16,7 @@ tudo em um único binário estático.
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg?logo=rust)](https://www.rust-lang.org)
 
-![tuxedo demo](docs/demo.gif)
+![prumo demo](docs/demo.gif)
 
 For a more in-depth walkthrough, please watch [this video](https://www.youtube.com/watch?v=mT1tg6SQ_Ag) by [@IogaMaster](https://github.com/IogaMaster).
 
@@ -65,8 +65,8 @@ is fork-only; the upstream docs that follow still apply.
   pending. State is carried by the symbol, not color alone, and colors are
   high-contrast — legible and color-blind safe. The dropdown groups tasks
   into **ATRASADAS / HOJE / PRÓXIMAS**; click a row's circle to complete it
-  (`tuxedo done`) or its text to open the app. Reads the list from
-  `tuxedo ls --json`, so the Rust core stays the single source of truth.
+  (`prumo done`) or its text to open the app. Reads the list from
+  `prumo ls --json`, so the Rust core stays the single source of truth.
 
 | Subtasks: amber `[2/4]` badge in the list, progress bar + clickable checkboxes in DETAIL | The in-app note panel (`m`) over the same task |
 | --- | --- |
@@ -75,12 +75,12 @@ is fork-only; the upstream docs that follow still apply.
 ## Highlights
 
 - **Pure todo.txt.** Reads and writes the [standard format](https://github.com/todotxt/todo.txt) — every line is plain text you can edit with anything else.
-- **TUI and CLI in one binary.** Run `tuxedo` for the interactive UI, or `tuxedo <command>` for a [todo.txt-cli](https://github.com/todotxt/todo.txt-cli)-compatible command line (`add`, `ls`, `do`, `pri`, `archive`, …) — scriptable, with `--json` output and `$TODO_DIR` / `$TODO_FILE` / `$DONE_FILE` support.
-- **Natural-language add.** Type prose into the add prompt — `Pay rent monthly on the first, show 3 days before due, project home` — and tuxedo rewrites it to canonical todo.txt for you to review and save. Local, offline, no AI service.
+- **TUI and CLI in one binary.** Run `prumo` for the interactive UI, or `prumo <command>` for a [todo.txt-cli](https://github.com/todotxt/todo.txt-cli)-compatible command line (`add`, `ls`, `do`, `pri`, `archive`, …) — scriptable, with `--json` output and `$TODO_DIR` / `$TODO_FILE` / `$DONE_FILE` support.
+- **Natural-language add.** Type prose into the add prompt — `Pay rent monthly on the first, show 3 days before due, project home` — and prumo rewrites it to canonical todo.txt for you to review and save. Local, offline, no AI service.
 - **Phone capture.** Press `s` for a QR pointing at a tiny PWA on your machine's LAN — type tasks from your phone and they appear in the list. Captures land in a sibling `inbox.txt` first, so any tool that can append a line (shell, iOS Shortcuts, cron) is also a capture source.
 - **Vim keys, no surprises.** `j` / `k` to move, `dd` to delete, `gg` / `G` to jump, `u` to undo (50 levels), chord prompts (`gg`, `dd`, `fp`, `fc`) with a 600 ms window.
 - **Command palette.** `:` or `Ctrl-P` opens a fuzzy palette over every action — type a few letters, hit Enter. Same matcher as `/` search, ranked so start-of-label hits beat word-boundary hits beat mid-word hits.
-- **Atomic, sync-friendly writes.** Every change goes through write-temp-then-rename. If another process — Dropbox, an editor, a script — modifies the file, tuxedo reloads on the next keypress (or within ~250 ms while idle) and flashes a notice.
+- **Atomic, sync-friendly writes.** Every change goes through write-temp-then-rename. If another process — Dropbox, an editor, a script — modifies the file, prumo reloads on the next keypress (or within ~250 ms while idle) and flashes a notice.
 - **Sibling-file archive.** `A` moves completed tasks to `done.txt` next to your file, atomically.
 - **Filter, sort, multi-select.** Cycle by `+project` or `@context`, sort by priority / due / file order, and bulk-complete or bulk-delete in visual mode.
 - **Saved searches.** Name the active `/`-search with `fs`, then recall it any time by cycling saved filters with `ff`. Stored as plain `filter.<name>` lines in the config — hand-editable like everything else.
@@ -118,7 +118,7 @@ is fork-only; the upstream docs that follow still apply.
 
 ### Custom themes
 
-Beyond the built-ins, tuxedo loads any `*.toml` file you drop in
+Beyond the built-ins, prumo loads any `*.toml` file you drop in
 `${XDG_CONFIG_HOME:-$HOME/.config}/tuxedo/themes/`. Each one joins the `T`
 picker in sorted filename order. Ready-made themes live in
 [`docs/themes/`](docs/themes) — copy one in and press `T`:
@@ -178,28 +178,22 @@ another theme is skipped with a warning at startup.
 ### Homebrew (macOS, Linux)
 
 ```sh
-brew install tuxedo
+brew tap wolffness/prumo
+brew trust wolffness/prumo   # personal tap — one-time confirmation
+brew install prumo
 ```
 
-### Prebuilt binaries
-
-Download the archive for your platform from the [latest release](https://github.com/webstonehq/tuxedo/releases/latest) and put `tuxedo` on your `PATH`.
-
-Targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`. Each archive ships with a `.sha256` checksum.
+Installs the `prumo` command (TUI + CLI). For the full macOS experience
+(Prumo.app, quick capture `⌥]`, menu bar) see
+[macOS app bundle](#macos-app-bundle) below.
 
 ### From source
 
 ```sh
-cargo install --git https://github.com/webstonehq/tuxedo
-```
-
-Or clone and build:
-
-```sh
-git clone https://github.com/webstonehq/tuxedo
-cd tuxedo
+git clone https://github.com/wolffness/prumo
+cd prumo
 cargo build --release
-./target/release/tuxedo [FILE]
+./target/release/tuxedo [FILE]   # the crate keeps the upstream binary name
 ```
 
 Requires the Rust 2024 edition (recent stable toolchain).
@@ -217,26 +211,26 @@ neither set it starts in `$HOME`.
 
 ## Usage
 
-`tuxedo` is two things in one binary: an interactive TUI, and a one-shot
+`prumo` is two things in one binary: an interactive TUI, and a one-shot
 command line. With no subcommand it launches the TUI; with a recognized
 subcommand it runs the [command line](#command-line-interface) and exits.
 
 ```sh
-tuxedo [FILE]      # launch the TUI on FILE (created if missing)
-tuxedo             # TUI on the default file (see resolution below)
-tuxedo --sample    # open the bundled sample file in the temp dir
-tuxedo <command>   # run a one-shot CLI command — see "Command-line interface"
-tuxedo update      # print upgrade instructions for your install
-tuxedo --help
-tuxedo --version
+prumo [FILE]      # launch the TUI on FILE (created if missing)
+prumo             # TUI on the default file (see resolution below)
+prumo --sample    # open the bundled sample file in the temp dir
+prumo <command>   # run a one-shot CLI command — see "Command-line interface"
+prumo update      # print upgrade instructions for your install
+prumo --help
+prumo --version
 ```
 
-When a newer release is available, the status bar shows `↑ <version> (tuxedo
+When a newer release is available, the status bar shows `↑ <version> (prumo
 update)` next to the version. The check runs in the background, is cached at
 `$XDG_CACHE_HOME/tuxedo/latest_version.json` for 24 h, and fails silently
 when offline. Set `TUXEDO_NO_UPDATE_CHECK=1` to disable.
 
-### Which file tuxedo opens
+### Which file prumo opens
 
 Both the TUI and the CLI resolve the todo file the same way, in order:
 
@@ -263,7 +257,7 @@ export DONE_FILE="$TODO_DIR/done.txt"
 Edits are persisted on every change via atomic write (write `.tmp`, rename).
 
 If the file changes on disk (another editor, a sync client, a script),
-tuxedo notices on the next keypress, or within ~250 ms while idle, and
+prumo notices on the next keypress, or within ~250 ms while idle, and
 reloads. The keystroke that triggered the reload is consumed — press it
 again to act on the fresh state — and the status bar flashes a notice.
 
@@ -274,19 +268,19 @@ can browse, un-archive, or permanently delete past tasks.
 
 ## Command-line interface
 
-When the first argument is a recognized subcommand, tuxedo runs a one-shot
+When the first argument is a recognized subcommand, prumo runs a one-shot
 command instead of launching the TUI. The surface mirrors
 [todo.txt-cli](https://github.com/todotxt/todo.txt-cli/wiki/Usage) — same
 commands, aliases, task numbering, and output — so it's a drop-in for scripts
 and aliases.
 
 ```sh
-tuxedo add "Pay rent +home @bank due:2026-07-01"   # or: tuxedo a "..."
-tuxedo ls @bank                                     # filter by context
-tuxedo do 3                                          # mark task 3 complete
-tuxedo pri 3 A                                        # set priority
-tuxedo archive                                        # move done tasks to done.txt
-tuxedo ls --json | jq .                              # machine-readable output
+prumo add "Pay rent +home @bank due:2026-07-01"   # or: prumo a "..."
+prumo ls @bank                                     # filter by context
+prumo do 3                                          # mark task 3 complete
+prumo pri 3 A                                        # set priority
+prumo archive                                        # move done tasks to done.txt
+prumo ls --json | jq .                              # machine-readable output
 ```
 
 | Command | Aliases | Arguments | Description |
@@ -318,11 +312,11 @@ shown` footer, matching todo.txt-cli.
   print an array of task objects; mutating commands print a result object.
   No prompts or footers are written in this mode.
 
-Global flags may appear before the subcommand (`tuxedo -f del 3`).
+Global flags may appear before the subcommand (`prumo -f del 3`).
 
 **Differences from todo.txt-cli:** `do` marks a task complete but does **not**
 auto-archive it — completed tasks stay in the file until you run `archive` (or
-press `A` in the TUI), matching tuxedo's interactive model. There is no `-d`
+press `A` in the TUI), matching prumo's interactive model. There is no `-d`
 config-file flag; configure paths with the environment variables above.
 
 ## Keybindings
@@ -525,7 +519,7 @@ Standard [todo.txt](https://github.com/todotxt/todo.txt) lines:
   note actions (`o` / `O`): relative paths resolve under `notes_dir`, then
   `$NOTES_DIR`, then `~/notes`. Keys you'd rather not see can be hidden from
   the rows via [`hide_keys`](#hiding-keyvalue-tags)
-- `rec:[+]N{d,b,w,m,y}` — recurrence; on completion (`x`), tuxedo inserts
+- `rec:[+]N{d,b,w,m,y}` — recurrence; on completion (`x`), prumo inserts
   a fresh copy of the task with `due:` advanced by `N` days, business
   days (Mon–Fri), weeks, months, or years. The `+` prefix means
   *strict* recurrence anchored to the previous due date (e.g.
@@ -573,7 +567,7 @@ Recognized vocabulary:
 - **Priority** — `high priority` → A, `medium priority` → B, `low priority` → C, or `priority A`.
 
 Parsing is rule-based and runs locally — no network calls, no API key. If
-the buffer already contains a `due:`, `rec:`, or `t:` token, tuxedo assumes
+the buffer already contains a `due:`, `rec:`, or `t:` token, prumo assumes
 you've typed canonical form and saves it directly on the first Enter.
 
 ## Phone capture
@@ -584,7 +578,7 @@ get a minimal PWA you can install to your home screen. Type a task, tap
 Add, and within a tick it shows up in your task list.
 
 Captures never touch `todo.txt` directly. They land in a sibling
-`inbox.txt`, which tuxedo drains on every external-change poll: each line
+`inbox.txt`, which prumo drains on every external-change poll: each line
 is run through the same natural-language pipeline as the `n` add prompt,
 given a creation date if missing, and merged into `todo.txt` as a single
 undoable batch (`u` rolls back the whole drain at once).
@@ -599,7 +593,7 @@ echo "Call dentist due:2026-06-01" >> ~/notes/inbox.txt
 
 Shell aliases, iOS Shortcuts writing to a synced folder, cron jobs,
 email-to-file gateways — pick your producer. As long as it appends a line
-to the sibling `inbox.txt`, tuxedo picks it up.
+to the sibling `inbox.txt`, prumo picks it up.
 
 The server:
 
@@ -616,7 +610,7 @@ The server:
   WiFi anyone passive-sniffing can recover the token. To rotate, delete
   `share_token` from `config.toml` and press `s` again.
 
-Drains from tuxedo-managed producers are crash-safe: the capture server
+Drains from prumo-managed producers are crash-safe: the capture server
 holds the same advisory lock as the TUI's rename-and-merge, and any
 staging file left over from an interrupted drain is replayed on the
 next session. Plain shell appends are useful for lightweight capture,
@@ -648,7 +642,7 @@ round-trip as plain text, so you can add, rename, or delete them by editing
 `<name>` may not contain `=`.
 
 Task-note actions resolve relative `note:<path>` tokens under `notes_dir`.
-If `notes_dir` is not set, tuxedo falls back to `$NOTES_DIR` and then
+If `notes_dir` is not set, prumo falls back to `$NOTES_DIR` and then
 `~/notes`. `O` creates missing notes under `projects/tuxedo-tasks/` using a
 small Markdown template and appends the generated `note:<path>` token to the
 task; `o` only opens an existing linked note.
@@ -686,7 +680,7 @@ plain `cargo` commands if you don't use [mise](https://mise.jdx.dev/).
 ## Acknowledgments
 
 - [todo.txt](http://todotxt.org/) by Gina Trapani — the format that makes a tool like this possible.
-- [ratatui](https://ratatui.rs/) and [crossterm](https://github.com/crossterm-rs/crossterm) — the rendering and terminal-input crates tuxedo is built on.
+- [ratatui](https://ratatui.rs/) and [crossterm](https://github.com/crossterm-rs/crossterm) — the rendering and terminal-input crates prumo is built on.
 
 ## Roadmap
 
