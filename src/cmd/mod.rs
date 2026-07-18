@@ -586,28 +586,62 @@ fn print_rows(tasks: &[Task], idxs: &[usize], width: usize) {
     }
 }
 
-/// `advisor <sub>`: opt-in AI suggestion over the current todo file. Read-only
-/// — prints the model's suggestion; never writes. Off unless `advisor = on`.
+/// `advisor <sub> [+projeto]`: opt-in AI suggestion sobre o todo file + issues
+/// do GitHub vinculadas. Read-only — imprime a sugestão; nunca escreve. Off a
+/// menos que `advisor = on`.
 fn cmd_advisor(store: &Store, pos: &[String]) -> i32 {
-    use crate::advisor::{self, AdvisorConfig, Task_};
-    let sub = pos.first().map(String::as_str).unwrap_or("prioritize");
+    use crate::advisor::{self, AdvisorConfig, Task_, github};
+
+    // Separa o subcomando do filtro `+projeto` (qualquer ordem).
+    let mut sub = "prioritize";
+    let mut project: Option<&str> = None;
+    for p in pos {
+        if let Some(pj) = p.strip_prefix('+') {
+            project = Some(pj);
+        } else {
+            sub = p;
+        }
+    }
+
+    if sub == "link" {
+        return cmd_advisor_link();
+    }
+
     let kind = match sub {
         "prioritize" | "pri" | "priorizar" => Task_::Prioritize,
         other => {
             eprintln!(
-                "{}: unknown advisor command: {other} (try `prioritize`)",
+                "{}: unknown advisor command: {other} (try `prioritize` or `link`)",
                 crate::brand::app_name()
             );
             return 2;
         }
     };
+
     let cfg = crate::config::Config::load();
-    let advisor = AdvisorConfig::resolve(
+    let advisor_cfg = AdvisorConfig::resolve(
         cfg.advisor.unwrap_or(false),
         cfg.advisor_backend.as_deref(),
         cfg.advisor_model.as_deref(),
     );
-    match advisor::advise(&advisor, kind, store.tasks()) {
+
+    // Tarefas locais + issues do GitHub dos repos vinculados (respeitando o
+    // filtro de projeto). Falha no gh degrada: avisa e segue só com o local.
+    let mut lines = advisor::local_lines(store.tasks(), project);
+    for (proj, repo) in &cfg.advisor_links {
+        if project.is_some_and(|p| p != proj.as_str()) {
+            continue;
+        }
+        match github::open_issue_lines(repo, proj) {
+            Ok(mut gh_lines) => lines.append(&mut gh_lines),
+            Err(e) => eprintln!(
+                "{}: aviso: não consegui puxar issues de {repo}: {e}",
+                crate::brand::app_name()
+            ),
+        }
+    }
+
+    match advisor::advise(&advisor_cfg, kind, &lines) {
         Ok(text) => {
             println!("{text}");
             0
@@ -617,6 +651,86 @@ fn cmd_advisor(store: &Store, pos: &[String]) -> i32 {
             1
         }
     }
+}
+
+/// Insere ou atualiza o vínculo `projeto → repo` na lista, preservando a
+/// posição da primeira ocorrência (mesma semântica dos filters).
+fn upsert_link(links: &mut Vec<(String, String)>, project: &str, repo: &str) {
+    match links.iter_mut().find(|(p, _)| p == project) {
+        Some((_, r)) => *r = repo.to_string(),
+        None => links.push((project.to_string(), repo.to_string())),
+    }
+}
+
+/// `advisor link`: setup interativo do vínculo projeto→repo. Lista os repos da
+/// conta (via `gh`), lê a escolha e o nome do projeto no stdin, e grava no
+/// config. Não escreve nada se o `gh` falhar ou a entrada for inválida.
+fn cmd_advisor_link() -> i32 {
+    use std::io::{self, Write};
+
+    let repos = match crate::advisor::github::list_repos() {
+        Ok(r) if !r.is_empty() => r,
+        Ok(_) => {
+            eprintln!(
+                "{}: nenhum repositório encontrado na sua conta.",
+                crate::brand::app_name()
+            );
+            return 1;
+        }
+        Err(e) => {
+            eprintln!("{}: {e}", crate::brand::app_name());
+            return 1;
+        }
+    };
+
+    println!("Repositórios da sua conta:");
+    for (i, r) in repos.iter().enumerate() {
+        println!("{:>3}. {}", i + 1, r);
+    }
+    print!("Número do repositório para vincular: ");
+    let _ = io::stdout().flush();
+
+    let mut buf = String::new();
+    if io::stdin().read_line(&mut buf).is_err() {
+        eprintln!("{}: não consegui ler a entrada.", crate::brand::app_name());
+        return 1;
+    }
+    let idx = match buf.trim().parse::<usize>() {
+        Ok(n) if (1..=repos.len()).contains(&n) => n - 1,
+        _ => {
+            eprintln!("{}: número inválido.", crate::brand::app_name());
+            return 2;
+        }
+    };
+    let repo = repos[idx].clone();
+
+    print!("Projeto do Prumo (o +tag, sem o +) para ligar a {repo}: ");
+    let _ = io::stdout().flush();
+    let mut proj = String::new();
+    if io::stdin().read_line(&mut proj).is_err() {
+        eprintln!("{}: não consegui ler a entrada.", crate::brand::app_name());
+        return 1;
+    }
+    let project = proj.trim().trim_start_matches('+');
+    if project.is_empty() {
+        eprintln!(
+            "{}: nome de projeto vazio; nada gravado.",
+            crate::brand::app_name()
+        );
+        return 2;
+    }
+
+    let mut cfg = crate::config::Config::load();
+    upsert_link(&mut cfg.advisor_links, project, &repo);
+    if let Err(e) = cfg.save() {
+        eprintln!(
+            "{}: não consegui salvar o config: {e}",
+            crate::brand::app_name()
+        );
+        return 1;
+    }
+    println!("Vinculado: +{project} → {repo}");
+    0
 }
 
 fn cmd_list(store: &Store, pos: &[String], json: bool) -> i32 {
@@ -759,6 +873,20 @@ mod tests {
 
     fn argv(parts: &[&str]) -> Vec<String> {
         parts.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn upsert_link_adds_then_updates_in_place() {
+        let mut links = vec![("prumo".to_string(), "wolffness/prumo".to_string())];
+        upsert_link(&mut links, "casa", "wolffness/casa");
+        upsert_link(&mut links, "prumo", "wolffness/prumo-2");
+        assert_eq!(
+            links,
+            vec![
+                ("prumo".to_string(), "wolffness/prumo-2".to_string()),
+                ("casa".to_string(), "wolffness/casa".to_string()),
+            ]
+        );
     }
 
     #[test]

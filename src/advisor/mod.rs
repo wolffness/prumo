@@ -77,37 +77,54 @@ pub enum Task_ {
     Prioritize,
 }
 
-/// Run an advisor request over `tasks`, returning the model's suggestion as
-/// plain text. The caller prints it; nothing is written to disk.
-pub fn advise(cfg: &AdvisorConfig, kind: Task_, tasks: &[Task]) -> Result<String> {
+/// Linhas de tarefas locais abertas (raw), opcionalmente filtradas a um
+/// `+project`. É a base da priorização, à qual o chamador anexa linhas do
+/// GitHub antes de chamar [`advise`].
+pub fn local_lines(tasks: &[Task], project: Option<&str>) -> Vec<String> {
+    tasks
+        .iter()
+        .filter(|t| !t.done)
+        .filter(|t| match project {
+            Some(p) => t.projects.iter().any(|proj| proj == p),
+            None => true,
+        })
+        .map(|t| t.raw.clone())
+        .collect()
+}
+
+/// Run an advisor request over `lines` (tarefas locais + itens do GitHub já
+/// montados), returning the model's suggestion as plain text. The caller
+/// prints it; nothing is written to disk.
+pub fn advise(cfg: &AdvisorConfig, kind: Task_, lines: &[String]) -> Result<String> {
     if !cfg.enabled {
         bail!(
             "advisor is off. Enable it in config.toml with `advisor = on`, \
              then set `advisor_backend = ollama` (default) or `claude`."
         );
     }
-    let open: Vec<&Task> = tasks.iter().filter(|t| !t.done).collect();
-    if open.is_empty() {
+    if lines.is_empty() {
         return Ok("Nenhuma tarefa aberta para priorizar.".to_string());
     }
-    let prompt = build_prompt(kind, &open);
+    let prompt = build_prompt(kind, lines);
     match cfg.backend {
         Backend::Ollama => call_ollama(&cfg.model, &prompt),
         Backend::Claude => call_claude(&cfg.model, &prompt),
     }
 }
 
-fn build_prompt(kind: Task_, open: &[&Task]) -> String {
-    let list = open
+fn build_prompt(kind: Task_, lines: &[String]) -> String {
+    let list = lines
         .iter()
         .enumerate()
-        .map(|(i, t)| format!("{}. {}", i + 1, t.raw))
+        .map(|(i, l)| format!("{}. {}", i + 1, l))
         .collect::<Vec<_>>()
         .join("\n");
     match kind {
         Task_::Prioritize => format!(
             "Você é um assistente de produtividade para uma pessoa com TDAH/TEA \
-             que trabalha sozinha. Abaixo está a lista de tarefas todo.txt em aberto.\n\n\
+             que trabalha sozinha. Abaixo está a lista de tarefas todo.txt em aberto. \
+             Itens marcados com `(?)` e um token `gh:owner/repo#N` são issues abertas \
+             do GitHub que ainda NÃO estão no todo.txt — considere-as na priorização.\n\n\
              {list}\n\n\
              Escolha as 3 tarefas mais importantes para fazer AGORA, em ordem, \
              equilibrando urgência (datas `due:`) e esforço. Para cada uma, uma \
@@ -297,6 +314,27 @@ fn read_json_string_from(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_lines_filters_done_and_project() {
+        use crate::todo::parse_line;
+        let tasks: Vec<Task> = [
+            "(A) Escrever plano +prumo",
+            "x Concluída +prumo",
+            "Comprar pão +casa",
+        ]
+        .iter()
+        .filter_map(|l| parse_line(l).ok())
+        .collect();
+
+        // Sem filtro: só as abertas (2).
+        assert_eq!(local_lines(&tasks, None).len(), 2);
+        // Filtrado a +prumo: só a aberta desse projeto.
+        assert_eq!(
+            local_lines(&tasks, Some("prumo")),
+            vec!["(A) Escrever plano +prumo".to_string()]
+        );
+    }
 
     #[test]
     fn backend_parse_and_defaults() {
