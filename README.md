@@ -340,6 +340,44 @@ arquiva automaticamente — as concluídas ficam no arquivo até você rodar
 Não há a flag `-d` de arquivo de configuração; configure os caminhos com as
 variáveis de ambiente acima.
 
+## Advisor de IA (opt-in)
+
+O prumo tem um **advisor de IA opcional** que sugere por onde começar. Ele fica
+**desligado por padrão** — o núcleo funciona sem nenhuma dependência de IA — e é
+**read-only**: imprime uma sugestão, nunca escreve no seu todo.txt nem no
+GitHub. Habilite no `config.toml`:
+
+```toml
+advisor = on
+advisor_backend = ollama          # padrão, local; ou `claude`
+# advisor_model = claude-opus-4-8 # opcional; default por backend
+```
+
+O backend Claude lê a chave de `ANTHROPIC_API_KEY` (variável de ambiente, nunca
+do config). O Ollama espera um `ollama serve` local.
+
+```sh
+prumo advisor prioritize          # ou: prumo advisor pri / priorizar
+```
+
+### Vincular um repositório do GitHub a um projeto
+
+O advisor pode considerar **issues abertas do GitHub** junto das suas tarefas.
+Cada repositório é ligado a **um projeto** (o `+tag` do todo.txt), mantendo a
+priorização por contexto.
+
+```sh
+prumo advisor link                # lista seus repos (via gh) e liga um a um projeto
+prumo advisor prioritize          # prioriza todos os projetos + issues vinculadas
+prumo advisor prioritize +prumo   # só o projeto +prumo e seu repo
+```
+
+Requer o [GitHub CLI](https://cli.github.com) autenticado (`gh auth login`) —
+o advisor reusa a sessão já logada, sem OAuth próprio. As issues entram na
+priorização marcadas com `(?)` e um token `gh:owner/repo#N`, deixando claro que
+ainda **não estão** no todo.txt. Se o `gh` não estiver disponível, o
+`prioritize` avisa e segue só com as tarefas locais.
+
 ## Atalhos de teclado
 
 Atalhos personalizados do modo normal podem ser adicionados em
