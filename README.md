@@ -68,7 +68,9 @@ valendo.
   pelo script de empacotamento, iniciado no login) mostra um painel
   flutuante no estilo OmniFocus a partir de qualquer app; as entradas caem
   no `inbox.txt` vizinho e fluem para a lista pelo dreno de inbox
-  existente, linguagem natural inclusa.
+  existente, linguagem natural inclusa. Digitar `+` ou `@` abre um popup
+  de autocomplete com os projetos/contextos já usados (↑/↓ navega, Tab ou
+  Enter aceita). `⌥[` abre o Prumo — ou traz a janela existente à frente.
 - **Resumo na barra de menu.** O mesmo agente coloca um ícone na barra de
   menu do macOS mostrando quantas tarefas com data você tem, por urgência:
   `⚠ N` (atrasadas) em laranja, `● N` (para hoje), `○ N` (próximas), ou

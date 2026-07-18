@@ -79,17 +79,25 @@ final class CapturePanel: NSObject, NSTextFieldDelegate {
     }
 
     func registerHotkey() {
-        // ⌥] — key code 30, option modifier. Carbon hotkeys need no
-        // accessibility permission.
-        var hotKeyRef: EventHotKeyRef?
-        let hotKeyID = EventHotKeyID(signature: OSType(0x5458_4344), id: 1) // "TXCD"
+        // ⌥] toggles quick capture, ⌥[ opens/raises the app. Carbon hotkeys
+        // need no accessibility permission.
+        var captureRef: EventHotKeyRef?
         RegisterEventHotKey(
             UInt32(kVK_ANSI_RightBracket),
             UInt32(optionKey),
-            hotKeyID,
+            EventHotKeyID(signature: OSType(0x5458_4344), id: 1), // "TXCD"
             GetApplicationEventTarget(),
             0,
-            &hotKeyRef
+            &captureRef
+        )
+        var openRef: EventHotKeyRef?
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_LeftBracket),
+            UInt32(optionKey),
+            EventHotKeyID(signature: OSType(0x5458_4344), id: 2),
+            GetApplicationEventTarget(),
+            0,
+            &openRef
         )
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
@@ -97,15 +105,38 @@ final class CapturePanel: NSObject, NSTextFieldDelegate {
         )
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData in
+            { _, event, userData in
                 let me = Unmanaged<CapturePanel>.fromOpaque(userData!).takeUnretainedValue()
-                me.toggle()
+                var hotKeyID = EventHotKeyID()
+                GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hotKeyID
+                )
+                switch hotKeyID.id {
+                case 1: me.toggle()
+                case 2: me.openApp()
+                default: break
+                }
                 return noErr
             },
             1,
             &eventType,
             Unmanaged.passUnretained(self).toOpaque(),
             nil
+        )
+    }
+
+    /// Launch Prumo.app, or raise its existing window — the launcher's
+    /// reopen path selects the terminal window already running the TUI.
+    func openApp() {
+        NSWorkspace.shared.openApplication(
+            at: URL(fileURLWithPath: "/Applications/Prumo.app"),
+            configuration: NSWorkspace.OpenConfiguration()
         )
     }
 
