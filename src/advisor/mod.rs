@@ -7,6 +7,8 @@
 //! review and apply by hand. The API key (Claude) comes from an environment
 //! variable, never the config file.
 
+pub mod github;
+
 use std::process::Command;
 
 use anyhow::{Result, anyhow, bail};
