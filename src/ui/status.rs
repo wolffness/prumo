@@ -17,6 +17,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             DialogInputMode::Insert => tr("INSERT", "INSERIR"),
         }
         .into(),
+        Mode::Search if app.search_is_shell() => "SHELL".into(),
         Mode::Search => tr("SEARCH", "BUSCA").into(),
         Mode::Visual => "VISUAL".into(),
         Mode::Help => tr("HELP", "AJUDA").into(),

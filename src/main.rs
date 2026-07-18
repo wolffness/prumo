@@ -254,6 +254,9 @@ fn run(
                     if let Some(path) = app.take_pending_editor_path() {
                         open_path_in_editor(&path)?;
                     }
+                    if let Some(cmd) = app.take_pending_shell() {
+                        run_shell_command(app, &cmd)?;
+                    }
                     dirty = true;
                 }
                 // A terminal resize must trigger an immediate redraw;
@@ -335,6 +338,58 @@ fn open_path_in_editor(path: &std::path::Path) -> Result<()> {
         Ok(_) => Ok(()),
         Err(e) => Err(e),
     }
+}
+
+/// Roda um comando shell do campo de busca (`! <cmd>`), suspendendo o TUI e
+/// devolvendo o terminal ao comando (teclado/saída reais). Espelha
+/// `open_path_in_editor`; ao voltar, recarrega todo.txt e config para refletir
+/// o que o comando possa ter mudado.
+fn run_shell_command(app: &mut App, cmd: &str) -> Result<()> {
+    use std::io::{BufRead, Write};
+
+    let _ = crossterm::execute!(io::stdout(), DisableMouseCapture);
+    ratatui::restore();
+
+    let status = std::process::Command::new("sh").arg("-c").arg(cmd).status();
+
+    // Pausa para a saída ficar visível antes de restaurar o TUI.
+    print!("\n[prumo] aperte Enter para voltar…");
+    let _ = io::stdout().flush();
+    let mut _line = String::new();
+    let _ = io::stdin().lock().read_line(&mut _line);
+
+    ratatui::crossterm::terminal::enable_raw_mode()?;
+    let _ = crossterm::execute!(io::stdout(), EnableMouseCapture);
+    ratatui::crossterm::execute!(
+        io::stdout(),
+        ratatui::crossterm::terminal::EnterAlternateScreen
+    )?;
+
+    // Recarrega estado que o comando possa ter alterado.
+    app.check_external_changes();
+    if let Some(path) = app.config_path.clone()
+        && let Ok(cfg) = Config::load_strict(&path)
+    {
+        app.reload_config(cfg);
+    }
+
+    match status {
+        Ok(s) if s.success() => {
+            app.flash(tuxedo::brand::tr("command finished", "comando concluído"));
+        }
+        Ok(s) => app.flash(format!(
+            "{}: {}",
+            tuxedo::brand::tr("command failed", "comando falhou"),
+            s.code()
+                .map(|c| format!("exit {c}"))
+                .unwrap_or_else(|| "sinal".into())
+        )),
+        Err(e) => app.flash(format!(
+            "{}: {e}",
+            tuxedo::brand::tr("command failed", "comando falhou")
+        )),
+    }
+    Ok(())
 }
 
 fn next_timeout(app: &App) -> Duration {
@@ -992,12 +1047,17 @@ fn handle_search(app: &mut App, key: KeyEvent) {
             app.clear_search();
         }
         KeyCode::Enter => {
-            app.mode = Mode::Normal;
-            app.cursor = 0;
+            app.commit_search();
         }
         _ => {
             if apply_to_draft(app, key) == DraftEffect::TextChanged {
-                app.set_search(app.draft.text().to_string());
+                // Texto iniciado por `!` é um comando shell, não uma busca:
+                // não filtra a lista ao vivo (só roda no Enter).
+                if app.search_is_shell() {
+                    app.clear_search();
+                } else {
+                    app.set_search(app.draft.text().to_string());
+                }
             }
         }
     }

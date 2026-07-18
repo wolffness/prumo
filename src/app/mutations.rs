@@ -434,6 +434,53 @@ mod tests {
     use crate::config::Config;
 
     #[test]
+    fn commit_search_queues_shell_for_bang_prefix() {
+        use crate::app::types::Mode;
+        let mut app = build_app("comprar pão +casa\n");
+        app.mode = Mode::Search;
+        app.draft_set("! prumo advisor link".to_string());
+        assert!(app.search_is_shell());
+
+        let queued = app.commit_search();
+
+        assert!(queued);
+        assert_eq!(app.mode, Mode::Normal);
+        assert_eq!(
+            app.take_pending_shell(),
+            Some("prumo advisor link".to_string())
+        );
+    }
+
+    #[test]
+    fn commit_search_empty_bang_queues_nothing() {
+        use crate::app::types::Mode;
+        let mut app = build_app("a\n");
+        app.mode = Mode::Search;
+        app.draft_set("!   ".to_string());
+
+        let queued = app.commit_search();
+
+        assert!(!queued);
+        assert!(app.take_pending_shell().is_none());
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn commit_search_normal_text_is_not_shell() {
+        use crate::app::types::Mode;
+        let mut app = build_app("a\n");
+        app.mode = Mode::Search;
+        app.draft_set("pão".to_string());
+        assert!(!app.search_is_shell());
+
+        let queued = app.commit_search();
+
+        assert!(!queued);
+        assert!(app.take_pending_shell().is_none());
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
     fn open_file_rebinds_path_body_and_resets_cursor() {
         let mut app = build_app("old one\nold two\nold three\n");
         app.cursor = 2;

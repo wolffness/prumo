@@ -170,6 +170,10 @@ pub struct App {
     /// Path queued for opening in the user's editor after the TUI temporarily
     /// restores the terminal. Set by OpenNote and drained by the run loop.
     pending_editor_path: Option<PathBuf>,
+    /// Shell command queued from the search field (`! <cmd>`), run after the
+    /// TUI temporarily restores the terminal. Set by `handle_search` and
+    /// drained by the run loop.
+    pending_shell: Option<String>,
     /// In-TUI note editor. `Some` only while `Mode::Note` is active.
     pub note_panel: Option<NotePanel>,
     /// Display-text → link-target registry for the OSC 8 overlay. The
@@ -254,6 +258,7 @@ impl App {
             share: None,
             notes_dir: note_dir,
             pending_editor_path: None,
+            pending_shell: None,
             note_panel: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
             click_targets: std::cell::RefCell::new(Vec::new()),
@@ -490,6 +495,16 @@ impl App {
         self.pending_editor_path.take()
     }
 
+    /// Enfileira um comando de shell (do campo `! <cmd>`) para o loop principal
+    /// rodar com o terminal restaurado.
+    pub fn queue_shell(&mut self, cmd: String) {
+        self.pending_shell = Some(cmd);
+    }
+
+    pub fn take_pending_shell(&mut self) -> Option<String> {
+        self.pending_shell.take()
+    }
+
     /// Reset the display-text → link-target registry. Called at the top of
     /// every `ui::draw` so stale mappings from previous frames can't leak.
     pub fn clear_link_targets(&self) {
@@ -667,6 +682,34 @@ impl App {
         self.filter.search = search;
         self.cursor = 0;
         self.recompute_visible();
+    }
+
+    /// `true` se o texto do campo de busca é um comando shell (`! ...`), não
+    /// uma busca. Usado para suprimir o filtro ao vivo e trocar o rótulo do
+    /// status para `SHELL`.
+    pub fn search_is_shell(&self) -> bool {
+        self.draft.text().trim_start().starts_with('!')
+    }
+
+    /// Trata o Enter no modo Search. Se o draft é `! <cmd>`, enfileira o comando
+    /// de shell e volta ao Normal; senão confirma a busca. Retorna `true` se um
+    /// comando foi enfileirado.
+    pub fn commit_search(&mut self) -> bool {
+        if let Some(rest) = self.draft.text().trim_start().strip_prefix('!') {
+            let cmd = rest.trim().to_string();
+            self.mode = Mode::Normal;
+            self.draft_clear();
+            self.clear_search();
+            if cmd.is_empty() {
+                return false;
+            }
+            self.queue_shell(cmd);
+            return true;
+        }
+        // Confirmação normal de busca: mantém o filtro, sai do modo.
+        self.mode = Mode::Normal;
+        self.cursor = 0;
+        false
     }
 
     /// Clear just the search component of the filter.
