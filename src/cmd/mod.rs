@@ -42,7 +42,7 @@ fn parse_args(rest: &[String]) -> Result<Args, String> {
 const SUBCOMMANDS: &[&str] = &[
     "add", "a", "append", "app", "prepend", "prep", "replace", "pri", "p", "depri", "dp", "done",
     "do", "complete", "del", "rm", "archive", "list", "ls", "listall", "lsa", "listpri", "lsp",
-    "listproj", "lsprj", "listcon", "lsc",
+    "listproj", "lsprj", "listcon", "lsc", "advisor",
 ];
 
 /// Locate the subcommand: the first non-global token, if it is a known
@@ -112,6 +112,7 @@ pub fn run(argv: &[String]) -> Result<Option<i32>> {
         "listpri" | "lsp" => cmd_listpri(&store, pos, json),
         "listproj" | "lsprj" => cmd_listtags(&store, json, TagKind::Project),
         "listcon" | "lsc" => cmd_listtags(&store, json, TagKind::Context),
+        "advisor" => cmd_advisor(&store, pos),
         other => {
             eprintln!("{}: unknown command: {other}", crate::brand::app_name());
             2
@@ -582,6 +583,39 @@ fn num_width(total: usize) -> usize {
 fn print_rows(tasks: &[Task], idxs: &[usize], width: usize) {
     for &i in idxs {
         println!("{:>width$} {}", i + 1, tasks[i].raw);
+    }
+}
+
+/// `advisor <sub>`: opt-in AI suggestion over the current todo file. Read-only
+/// — prints the model's suggestion; never writes. Off unless `advisor = on`.
+fn cmd_advisor(store: &Store, pos: &[String]) -> i32 {
+    use crate::advisor::{self, AdvisorConfig, Task_};
+    let sub = pos.first().map(String::as_str).unwrap_or("prioritize");
+    let kind = match sub {
+        "prioritize" | "pri" | "priorizar" => Task_::Prioritize,
+        other => {
+            eprintln!(
+                "{}: unknown advisor command: {other} (try `prioritize`)",
+                crate::brand::app_name()
+            );
+            return 2;
+        }
+    };
+    let cfg = crate::config::Config::load();
+    let advisor = AdvisorConfig::resolve(
+        cfg.advisor.unwrap_or(false),
+        cfg.advisor_backend.as_deref(),
+        cfg.advisor_model.as_deref(),
+    );
+    match advisor::advise(&advisor, kind, store.tasks()) {
+        Ok(text) => {
+            println!("{text}");
+            0
+        }
+        Err(e) => {
+            eprintln!("{}: {e}", crate::brand::app_name());
+            1
+        }
     }
 }
 

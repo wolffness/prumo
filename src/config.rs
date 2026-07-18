@@ -49,6 +49,14 @@ pub struct Config {
     /// this only affects display. Serialized as `hide_keys = a, b, c`.
     pub hidden_keys: Vec<String>,
     pub week_start: Option<WeekStart>,
+    /// Opt-in AI advisor. Off unless `advisor = on`. When off, no advisor
+    /// command or key is exposed and the core stays fully offline.
+    pub advisor: Option<bool>,
+    /// Advisor LLM backend: `ollama` (default, local) or `claude`.
+    pub advisor_backend: Option<String>,
+    /// Advisor model override; defaults per backend when unset. The API key
+    /// (for cloud backends) is read from the environment, never from here.
+    pub advisor_model: Option<String>,
 }
 
 impl Config {
@@ -169,6 +177,9 @@ fn parse(s: &str) -> Config {
                     .collect();
             }
             "week_start" => c.week_start = v.parse().ok(),
+            "advisor" => c.advisor = parse_bool(v),
+            "advisor_backend" if !v.trim().is_empty() => c.advisor_backend = Some(v.to_string()),
+            "advisor_model" if !v.trim().is_empty() => c.advisor_model = Some(v.to_string()),
             // Saved searches: `filter.<name> = <query>`. The name is the
             // (trimmed) text after the `filter.` prefix; the query is the
             // (unquoted) value, which may itself contain `=`. A repeated
@@ -238,6 +249,15 @@ fn serialize(c: &Config) -> String {
     if let Some(v) = c.week_start {
         let _ = writeln!(out, "week_start = {v}");
     }
+    if let Some(v) = c.advisor {
+        let _ = writeln!(out, "advisor = {}", if v { "on" } else { "off" });
+    }
+    if let Some(v) = &c.advisor_backend {
+        let _ = writeln!(out, "advisor_backend = {v}");
+    }
+    if let Some(v) = &c.advisor_model {
+        let _ = writeln!(out, "advisor_model = {v}");
+    }
     out
 }
 
@@ -283,6 +303,9 @@ mod tests {
             notes_dir: Some("~/notes".into()),
             hidden_keys: vec!["uid".into(), "sync".into()],
             week_start: Some(WeekStart::Sunday),
+            advisor: None,
+            advisor_backend: None,
+            advisor_model: None,
         };
 
         let s = serialize(&c);
@@ -439,6 +462,9 @@ mod tests {
             notes_dir: Some("/tmp/notes".into()),
             hidden_keys: vec!["uid".into()],
             week_start: Some(WeekStart::Sunday),
+            advisor: None,
+            advisor_backend: None,
+            advisor_model: None,
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

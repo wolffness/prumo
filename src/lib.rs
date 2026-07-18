@@ -1,6 +1,7 @@
 #![warn(clippy::unwrap_used)]
 
 pub mod action;
+pub mod advisor;
 pub mod app;
 pub mod attach;
 pub mod brand;
