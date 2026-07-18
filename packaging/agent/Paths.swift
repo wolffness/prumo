@@ -27,14 +27,14 @@ func resolveInbox() -> URL {
     resolveTodoFile().deletingLastPathComponent().appendingPathComponent("inbox.txt")
 }
 
-/// The `tuxedo` binary in the OUTER app bundle's Resources — a sibling of this
+/// The `prumo` binary in the OUTER app bundle's Resources — a sibling of this
 /// nested agent app. resourcePath is
-/// .../Tuxedo.app/Contents/Resources/TuxedoAgent.app/Contents/Resources ;
-/// three parent hops reach .../Tuxedo.app/Contents/Resources.
-func resolveTuxedoBinary() -> URL {
+/// .../Prumo.app/Contents/Resources/PrumoAgent.app/Contents/Resources ;
+/// three parent hops reach .../Prumo.app/Contents/Resources.
+func resolvePrumoBinary() -> URL {
     URL(fileURLWithPath: Bundle.main.resourcePath ?? "")
         .deletingLastPathComponent()   // Contents
-        .deletingLastPathComponent()   // TuxedoAgent.app
+        .deletingLastPathComponent()   // PrumoAgent.app
         .deletingLastPathComponent()   // outer Resources
-        .appendingPathComponent("tuxedo")
+        .appendingPathComponent("prumo")
 }

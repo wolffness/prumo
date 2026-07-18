@@ -127,7 +127,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(none)
         }
         menu.addItem(.separator())
-        let open = NSMenuItem(title: "Abrir Tuxedo", action: #selector(openTuxedo), keyEquivalent: "")
+        let open = NSMenuItem(title: "Abrir Prumo", action: #selector(openPrumo), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
         let new = NSMenuItem(title: "Nova tarefa…", action: #selector(newTask), keyEquivalent: "")
@@ -166,7 +166,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     /// Clean label for a menu row: drop the leading "(A) " priority and the
-    /// leading creation date, and strip the metadata key:value tokens tuxedo
+    /// leading creation date, and strip the metadata key:value tokens prumo
     /// adds (due/t/rec/note/at). Keeps +projects and @contexts, which are short
     /// and meaningful. The key list is explicit so plain URLs (http:, https:)
     /// in the task text survive.
@@ -199,7 +199,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     /// Complete a task. Anti-race: re-fetch and match by raw text (positions
-    /// shift when the file changes), then `tuxedo done <current n>`.
+    /// shift when the file changes), then `prumo done <current n>`.
     private func complete(raw: String) {
         let file = todoFile
         DispatchQueue.global().async { [weak self] in
@@ -208,7 +208,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 self?.refresh(); return
             }
             let p = Process()
-            p.executableURL = resolveTuxedoBinary()
+            p.executableURL = resolvePrumoBinary()
             p.arguments = ["done", String(match.n)]
             var env = ProcessInfo.processInfo.environment
             env["TODO_FILE"] = file.path
@@ -224,12 +224,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Open the task's text zone. v1 opens the app; jumping straight to this
     /// task's detail is a planned follow-up (needs a `--goto` in the TUI).
     private func openTask(_ task: TodoTask) {
-        openTuxedo()
+        openPrumo()
     }
 
-    @objc private func openTuxedo() {
+    @objc private func openPrumo() {
         NSWorkspace.shared.openApplication(
-            at: URL(fileURLWithPath: "/Applications/Tuxedo.app"),
+            at: URL(fileURLWithPath: "/Applications/Prumo.app"),
             configuration: NSWorkspace.OpenConfiguration())
     }
 

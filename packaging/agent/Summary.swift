@@ -50,14 +50,14 @@ func todayString() -> String {
     return f.string(from: Date())
 }
 
-/// Side-effecting: run `tuxedo ls --json` against `todoFile` and decode the
+/// Side-effecting: run `prumo ls --json` against `todoFile` and decode the
 /// task list. The agent is launched by a LaunchAgent with no shell env, so we
-/// MUST pass TODO_FILE explicitly — otherwise tuxedo reads its default file
+/// MUST pass TODO_FILE explicitly — otherwise prumo reads its default file
 /// (wrong list). Returns [] on any failure (missing binary, bad JSON) so the UI
 /// degrades to an empty/neutral icon rather than crashing.
 func fetchTasks(todoFile: URL) -> [TodoTask] {
     let p = Process()
-    p.executableURL = resolveTuxedoBinary()
+    p.executableURL = resolvePrumoBinary()
     p.arguments = ["ls", "--json"]
     var env = ProcessInfo.processInfo.environment
     env["TODO_FILE"] = todoFile.path
