@@ -15,7 +15,8 @@ pub fn config_home() -> Option<PathBuf> {
             return Some(p);
         }
         eprintln!(
-            "tuxedo: ignoring non-absolute XDG_CONFIG_HOME={:?} (per XDG spec)",
+            "{}: ignoring non-absolute XDG_CONFIG_HOME={:?} (per XDG spec)",
+            crate::brand::app_name(),
             p.display()
         );
     }

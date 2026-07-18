@@ -1,7 +1,17 @@
 [package]
 name = "tuxedo"
-version = "2026.7.1"
+version = "2026.7.1-prumo1"
 edition = "2024"
+
+# The fork ships the same program under both names; user-facing text follows
+# the invoked name (see src/brand.rs) while config paths stay `tuxedo`.
+[[bin]]
+name = "tuxedo"
+path = "src/main.rs"
+
+[[bin]]
+name = "prumo"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0"

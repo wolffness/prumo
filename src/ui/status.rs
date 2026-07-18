@@ -78,12 +78,16 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         right_parts.push(format!("{} selected", app.selection.len()));
     }
     right_parts.push(app.today().to_string());
-    right_parts.push(concat!(env!("CARGO_PKG_NAME"), " ", env!("CARGO_PKG_VERSION")).to_string());
+    right_parts.push(format!(
+        "{} {}",
+        crate::brand::app_name(),
+        env!("CARGO_PKG_VERSION")
+    ));
     // Track where the update suffix would slot in so we can paint it in the
     // accent color (the rest of the right text is dim).
     let update_suffix = app
         .update_available()
-        .map(|tag| format!(" · ↑ {tag} (tuxedo update)"));
+        .map(|tag| format!(" · ↑ {tag} ({} update)", crate::brand::app_name()));
     let right_text = right_parts.join(" · ");
 
     // Append a chord indicator (e.g. " g…") so two-key sequences like gg/dd/fp

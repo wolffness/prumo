@@ -368,7 +368,7 @@ impl App {
     /// draw an "update available" hint.
     pub fn update_available(&self) -> Option<&str> {
         let latest = self.latest_version.as_deref()?;
-        if crate::update::is_newer(latest, env!("CARGO_PKG_VERSION")) {
+        if crate::update::is_newer_fork(latest, env!("CARGO_PKG_VERSION")) {
             Some(latest)
         } else {
             None

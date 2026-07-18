@@ -41,7 +41,7 @@ fn main() -> Result<()> {
             return Ok(());
         }
         Some("--version") | Some("-V") => {
-            println!("tuxedo {}", env!("CARGO_PKG_VERSION"));
+            println!("{} {}", tuxedo::brand::app_name(), env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
         Some("update") => {
@@ -50,8 +50,9 @@ fn main() -> Result<()> {
         }
         Some("--sample") => (cli::sample_path()?, Mode::Normal),
         Some(s) if s.starts_with('-') => {
-            eprintln!("tuxedo: unknown option: {s}");
-            eprintln!("try `tuxedo --help`");
+            let name = tuxedo::brand::app_name();
+            eprintln!("{name}: unknown option: {s}");
+            eprintln!("try `{name} --help`");
             std::process::exit(2);
         }
         _ => match cli::resolve_target(arg)? {
@@ -134,15 +135,16 @@ fn main() -> Result<()> {
     // rebound to the sample. Skip the line if the user quit the welcome
     // prompt without choosing — no file was opened.
     if app_state.mode != Mode::Welcome {
-        eprintln!("tuxedo: {}", app_state.file_path.display());
+        eprintln!("{}: {}", tuxedo::brand::app_name(), app_state.file_path.display());
     }
     result
 }
 
 fn print_usage() {
-    println!("usage: tuxedo [FILE]                 launch the TUI");
-    println!("       tuxedo <command> [args]       run a one-shot command");
-    println!("       tuxedo update");
+    let name = tuxedo::brand::app_name();
+    println!("usage: {name} [FILE]                 launch the TUI");
+    println!("       {name} <command> [args]       run a one-shot command");
+    println!("       {name} update");
     println!();
     println!("Without FILE or a command, opens ./todo.txt if present; otherwise");
     println!("prompts to create ./todo.txt here or open a sample todo.txt, in");
@@ -167,7 +169,7 @@ fn print_usage() {
     println!("  listpri, lsp [PRIORITY]   list prioritized tasks");
     println!("  listproj, lsprj           list +projects");
     println!("  listcon, lsc              list @contexts");
-    println!("  update                    print instructions for upgrading tuxedo");
+    println!("  update                    print instructions for upgrading {name}");
     println!();
     println!("Options:");
     println!("  -f, --force      skip confirmation prompts (e.g. for del)");

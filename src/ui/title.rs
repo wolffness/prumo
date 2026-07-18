@@ -15,7 +15,9 @@ use std::path::Path;
 /// the pragmatic choice.
 pub const DEFAULT_BUDGET: usize = 64;
 
-const PREFIX: &str = "tuxedo ";
+fn title_prefix() -> String {
+    format!("{} ", crate::brand::app_name())
+}
 
 /// Build the terminal title for `path`. `home`, when supplied, collapses to
 /// `~`. The returned string never exceeds `budget` characters unless even a
@@ -85,7 +87,7 @@ fn render(prefix: &str, rest: &[String], shortened: &[bool]) -> String {
         })
         .collect::<Vec<_>>()
         .join("/");
-    format!("{PREFIX}{prefix}{body}")
+    format!("{}{prefix}{body}", title_prefix())
 }
 
 /// Abbreviate a single path component to its first character, preserving a

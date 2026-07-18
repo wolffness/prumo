@@ -78,7 +78,7 @@ pub fn run(argv: &[String]) -> Result<Option<i32>> {
     let args = match parse_args(&rest) {
         Ok(a) => a,
         Err(e) => {
-            eprintln!("tuxedo: {e}");
+            eprintln!("{}: {e}", crate::brand::app_name());
             return Ok(Some(2));
         }
     };
@@ -113,7 +113,7 @@ pub fn run(argv: &[String]) -> Result<Option<i32>> {
         "listproj" | "lsprj" => cmd_listtags(&store, json, TagKind::Project),
         "listcon" | "lsc" => cmd_listtags(&store, json, TagKind::Context),
         other => {
-            eprintln!("tuxedo: unknown command: {other}");
+            eprintln!("{}: unknown command: {other}", crate::brand::app_name());
             2
         }
     };
@@ -123,7 +123,7 @@ pub fn run(argv: &[String]) -> Result<Option<i32>> {
 // ----- helpers -----------------------------------------------------------
 
 fn err(msg: impl std::fmt::Display) -> i32 {
-    eprintln!("tuxedo: {msg}");
+    eprintln!("{}: {msg}", crate::brand::app_name());
     1
 }
 
@@ -172,7 +172,7 @@ fn store_error(json: bool, action: &str, e: impl std::fmt::Display) -> i32 {
         s.push('}');
         eprintln!("{s}");
     } else {
-        eprintln!("tuxedo: {e}");
+        eprintln!("{}: {e}", crate::brand::app_name());
     }
     1
 }

@@ -42,7 +42,7 @@ pub fn run() -> io::Result<()> {
         .map(detect_kind)
         .unwrap_or(InstallKind::Unknown);
     let current = env!("CARGO_PKG_VERSION");
-    println!("tuxedo {current}");
+    println!("{} {current}", crate::brand::app_name());
     if let Some(p) = &exe {
         println!("installed at: {}", p.display());
     }
@@ -51,26 +51,26 @@ pub fn run() -> io::Result<()> {
         InstallKind::Homebrew => {
             println!("Looks like a Homebrew install. Update with:");
             println!();
-            println!("    brew update && brew upgrade webstonehq/tap/tuxedo");
+            println!("    brew update && brew upgrade wolffness/prumo/prumo");
         }
         InstallKind::Cargo => {
             println!("Looks like a `cargo install` build. Update with:");
             println!();
-            println!("    cargo install --git https://github.com/webstonehq/tuxedo --force");
+            println!("    cargo install --git https://github.com/wolffness/prumo --force");
         }
         InstallKind::Binary => {
             println!("Looks like a downloaded binary. Grab the latest from:");
             println!();
-            println!("    https://github.com/webstonehq/tuxedo/releases/latest");
+            println!("    https://github.com/wolffness/prumo/releases/latest");
             println!();
             println!("...and replace the file above.");
         }
         InstallKind::Unknown => {
             println!("Could not detect the install method. Options:");
             println!();
-            println!("    brew upgrade webstonehq/tap/tuxedo");
-            println!("    cargo install --git https://github.com/webstonehq/tuxedo --force");
-            println!("    https://github.com/webstonehq/tuxedo/releases/latest");
+            println!("    brew upgrade wolffness/prumo/prumo");
+            println!("    cargo install --git https://github.com/wolffness/prumo --force");
+            println!("    https://github.com/wolffness/prumo/releases/latest");
         }
     }
     Ok(())
@@ -118,7 +118,7 @@ const CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 /// (which is what burned us once during testing).
 const NEGATIVE_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 const CURL_TIMEOUT_SECS: u64 = 5;
-const RELEASE_URL: &str = "https://api.github.com/repos/webstonehq/tuxedo/releases/latest";
+const RELEASE_URL: &str = "https://api.github.com/repos/wolffness/prumo/releases/latest";
 
 fn check_for_update() -> Option<String> {
     let cache_path = cache_path();
@@ -192,6 +192,30 @@ pub fn parse_tag_from_release_json(body: &str) -> Option<String> {
 /// is stripped on both sides. Non-numeric segments fall back to lexicographic
 /// comparison of that segment, so a future suffix like `2026.5.5-rc1` won't
 /// crash — it just compares the strings.
+/// Fork-aware wrapper over [`is_newer`]: a trailing `-prumoN` fork revision
+/// is split off both versions and compared numerically when the base
+/// versions are equal (absent revision = 0). Without this, upstream's
+/// lexicographic fallback flags `v2026.7.1-prumo1` as newer than
+/// `2026.7.1-prumo1` forever.
+pub fn is_newer_fork(latest: &str, current: &str) -> bool {
+    fn split(v: &str) -> (&str, u64) {
+        let v = v.trim_start_matches('v');
+        match v.split_once("-prumo") {
+            Some((base, n)) => (base, n.parse().unwrap_or(0)),
+            None => (v, 0),
+        }
+    }
+    let (lb, ln) = split(latest);
+    let (cb, cn) = split(current);
+    if is_newer(lb, cb) {
+        return true;
+    }
+    if is_newer(cb, lb) {
+        return false;
+    }
+    ln > cn
+}
+
 pub fn is_newer(latest: &str, current: &str) -> bool {
     let l = latest.trim_start_matches('v');
     let c = current.trim_start_matches('v');
@@ -435,5 +459,34 @@ mod tests {
         assert_eq!(ts, 1_700_000_000);
         assert_eq!(tag, "");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod fork_version_tests {
+    use super::is_newer_fork;
+
+    #[test]
+    fn equal_fork_versions_are_not_newer() {
+        assert!(!is_newer_fork("v2026.7.1-prumo1", "2026.7.1-prumo1"));
+    }
+
+    #[test]
+    fn fork_revision_orders_numerically() {
+        assert!(is_newer_fork("v2026.7.1-prumo2", "2026.7.1-prumo1"));
+        assert!(!is_newer_fork("v2026.7.1-prumo1", "2026.7.1-prumo2"));
+        assert!(is_newer_fork("v2026.7.1-prumo10", "2026.7.1-prumo9"));
+    }
+
+    #[test]
+    fn base_version_still_wins() {
+        assert!(is_newer_fork("v2026.8.0", "2026.7.1-prumo3"));
+        assert!(!is_newer_fork("v2026.7.0", "2026.7.1-prumo1"));
+    }
+
+    #[test]
+    fn missing_fork_revision_counts_as_zero() {
+        assert!(is_newer_fork("v2026.7.1-prumo1", "2026.7.1"));
+        assert!(!is_newer_fork("v2026.7.1", "2026.7.1-prumo1"));
     }
 }

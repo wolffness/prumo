@@ -69,7 +69,7 @@ pub fn start(todo_path: PathBuf, token: String, port: u16) -> Result<ShareInfo> 
         .spawn(move || {
             for request in server.incoming_requests() {
                 if let Err(e) = handle(request, &path_arc, &token_arc) {
-                    eprintln!("tuxedo capture: request error: {e}");
+                    eprintln!("{} capture: request error: {e}", crate::brand::app_name());
                 }
             }
         })
