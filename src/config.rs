@@ -61,6 +61,10 @@ pub struct Config {
     /// liga um projeto do todo.txt a um repositório do GitHub. Serializado
     /// uma linha por par como `advisor_link.<projeto> = <owner/repo>`.
     pub advisor_links: Vec<(String, String)>,
+    /// Projetos com o advisor ligado. O advisor age só nesses (opt-in por
+    /// projeto). Serializado uma linha por projeto como
+    /// `advisor_project.<nome> = on`.
+    pub advisor_projects: Vec<String>,
 }
 
 impl Config {
@@ -190,6 +194,26 @@ fn parse(s: &str) -> Config {
             // name collapses to one entry, last value wins, position of
             // the first occurrence kept — matching `upsert`'s semantics.
             _ if k
+                .strip_prefix("advisor_project.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k
+                    .strip_prefix("advisor_project.")
+                    .expect("checked above")
+                    .trim()
+                    .to_string();
+                // Só entra no set quando ligado; `off`/falsy remove.
+                let on = parse_bool(v).unwrap_or(false);
+                let pos = c.advisor_projects.iter().position(|p| p == &name);
+                match (on, pos) {
+                    (true, None) => c.advisor_projects.push(name),
+                    (false, Some(i)) => {
+                        c.advisor_projects.remove(i);
+                    }
+                    _ => {}
+                }
+            }
+            _ if k
                 .strip_prefix("advisor_link.")
                 .is_some_and(|n| !n.trim().is_empty()) =>
             {
@@ -279,6 +303,9 @@ fn serialize(c: &Config) -> String {
     for (project, repo) in &c.advisor_links {
         let _ = writeln!(out, "advisor_link.{project} = {repo}");
     }
+    for project in &c.advisor_projects {
+        let _ = writeln!(out, "advisor_project.{project} = on");
+    }
     out
 }
 
@@ -331,6 +358,7 @@ mod tests {
                 ("prumo".into(), "wolffness/prumo".into()),
                 ("casa".into(), "wolffness/casa-infra".into()),
             ],
+            advisor_projects: vec!["prumo".into()],
         };
 
         let s = serialize(&c);
@@ -354,6 +382,18 @@ mod tests {
         );
         // Serialize → parse é idempotente.
         assert_eq!(parse(&serialize(&c)).advisor_links, c.advisor_links);
+    }
+
+    #[test]
+    fn advisor_projects_on_off_round_trip() {
+        let s = "advisor_project.ShelfFlow = on\n\
+                 advisor_project.casa = on\n\
+                 advisor_project.casa = off\n";
+        let c = parse(s);
+        // `casa` foi ligado e depois desligado → fora do set; ShelfFlow fica.
+        assert_eq!(c.advisor_projects, vec!["ShelfFlow".to_string()]);
+        // Serialize só emite os ligados; round-trip estável.
+        assert_eq!(parse(&serialize(&c)).advisor_projects, c.advisor_projects);
     }
 
     #[test]
@@ -509,6 +549,7 @@ mod tests {
             advisor_backend: None,
             advisor_model: None,
             advisor_links: vec![("errand".into(), "octocat/errand".into())],
+            advisor_projects: vec!["errand".into()],
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

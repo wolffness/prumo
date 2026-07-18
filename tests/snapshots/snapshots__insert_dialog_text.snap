@@ -14,15 +14,27 @@ expression: buffer_to_text(&buf)
    +travel           1     (2)  PRIORITY C  ──────────────────────                                  
                             6   (C) Pay quarterly estimated taxes                                   
  CONTEXTS                   7   (C) Order new running shoes +healt                                  
-   @errands          4     (8)┌ ADD TASK ────────────────────────────┐                              
-   @home             4      8 │                                      │                              
-   @laptop           4      9 │  › groceries @errands due:2026-05-10█│                              
-   @phone            3     10 │  ok · pri A · due 2026-05-10 · 1 +pro│                              
-                           11 │                                      │                              
-                           12 │  format: (A) Buy milk +shop @home due│                              
-                           13 │                                      │                              
-                           14 └──────────────────────────────────────┘                              
-                           15       Replace bathroom faucet washer                                  
+   @errands          4     (8)  NO PRIORITY  ─────────────────────                                  
+   @home             4      8       Migrate analytics to new pipel                                  
+   @laptop           4      9       Pay rent due:2026-05-15 rec:+1                                  
+   @phone            3     10       Pick up dry cleaning @errands                                   
+                           11       Schedule annual physical @phon                                  
+                           12       Read "Designing Data-Intensive                                  
+                           13 ┌ ADD TASK ────────────────────────────┐                              
+                           14 │                                      │                              
+                           15 │  › groceries @errands due:2026-05-10█│                              
+                              │  ok · pri A · due 2026-05-10 · 1 +pro│                              
+                              │                                      │                              
+                              │  format: (A) Buy milk +shop @home due│                              
+                              │                                      │                              
+                              └──────────────────────────────────────┘                              
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

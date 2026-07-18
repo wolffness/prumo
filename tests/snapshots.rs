@@ -30,7 +30,7 @@ use tuxedo::sample;
 use tuxedo::ui;
 
 const COLS: u16 = 100;
-const ROWS: u16 = 32;
+const ROWS: u16 = 44;
 
 /// File path used in every fixture. Hard-coded (not `temp_dir()`) so the
 /// header line that displays it stays byte-identical across runs and

@@ -14,15 +14,21 @@ expression: buffer_to_text(&buf)
    +travel           1     (2)  PRIORITY C  ──────────────────────                                  
                             6   (C) Pay quarterly estimated taxes                                   
  CONTEXTS                   7   (C) Order new running shoes +healt                                  
-   @errands          4     (8)┌ ADD TASK ────────────────────────────┐                              
-   @home             4      8 │                                      │                              
-   @laptop           4      9 │  › Buy milk +groceries█              │                              
-   @phone            3     10 │  ok · 1 +project                     │                              
-                           11 │                                      │                              
-                           12 │  format: (A) Buy milk +shop @home due│                              
-                           13 │                                      │                              
-                           14 └──────────────────────────────────────┘                              
-                           15     ┌ PRIORITY ────────────┐t washer                                  
+   @errands          4     (8)  NO PRIORITY  ─────────────────────                                  
+   @home             4      8       Migrate analytics to new pipel                                  
+   @laptop           4      9       Pay rent due:2026-05-15 rec:+1                                  
+   @phone            3     10       Pick up dry cleaning @errands                                   
+                           11       Schedule annual physical @phon                                  
+                           12       Read "Designing Data-Intensive                                  
+                           13 ┌ ADD TASK ────────────────────────────┐                              
+                           14 │                                      │                              
+                           15 │  › Buy milk +groceries█              │                              
+                              │  ok · 1 +project                     │                              
+                              │                                      │                              
+                              │  format: (A) Buy milk +shop @home due│                              
+                              │                                      │                              
+                              └──────────────────────────────────────┘                              
+                                  ┌ PRIORITY ────────────┐                                          
                                   │  (A)                 │                                          
                                   │  (B)                 │                                          
                                   │  (C)                 │                                          
@@ -30,6 +36,12 @@ expression: buffer_to_text(&buf)
                                   │                      │                                          
                                   │  jk move · Enter set │                                          
                                   └──────────────────────┘                                          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

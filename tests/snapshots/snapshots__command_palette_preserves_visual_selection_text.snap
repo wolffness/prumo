@@ -8,16 +8,22 @@ expression: buffer_to_text(&buf)
    +work             4      1 [x] ▸ (A) Finish Q2 board deck +work created   2026-05-01             
    +health           3      2 [x]   (A) Call dentist to reschedule due       2026-05-06  today      
    +finance          2     (3)  PRIORITY B  ────────────────────── projects  +work                  
-   +home            ┌ tuxedo · command ────────────────────────────────────────┐ptop                
-   +learning        │ > █                                                      │                    
-   +personal        │──────────────────────────────────────────────────────────│                    
-   +travel          │ ▶ new task                                             n │                    
+   +home             1      3 [ ]   (B) Review pull requests for a contexts  @laptop                
+   +learning         1      4 [ ]   (B) Renew passport before summ                                  
+   +personal         1      5 [ ]   (B) Draft hiring rubric for se                                  
+   +travel           1     (2)  PRIORITY C  ──────────────────────                                  
+                            6 [ ]   (C) Pay quarterly estimated ta                                  
+ CONTEXTS                   7 [ ]   (C) Order new running shoes +h                                  
+   @errands         ┌ tuxedo · command ────────────────────────────────────────┐                    
+   @home            │ > █                                                      │                    
+   @laptop          │──────────────────────────────────────────────────────────│                    
+   @phone           │ ▶ new task                                             n │                    
                     │   edit current task (normal mode)                      e │                    
- CONTEXTS           │   edit current task (insert mode)                      i │                    
-   @errands         │   toggle complete                                      x │                    
-   @home            │   delete task                                         dd │                    
-   @laptop          │   cycle priority                                       p │                    
-   @phone           │   add project to current task                          + │                    
+                    │   edit current task (insert mode)                      i │                    
+                    │   toggle complete                                      x │                    
+                    │   delete task                                         dd │                    
+                    │   cycle priority                                       p │                    
+                    │   add project to current task                          + │                    
                     │   add or remove context on current task                c │                    
                     │   copy line to clipboard                              yy │                    
                     │   copy body to clipboard                              yb │                    
@@ -28,6 +34,12 @@ expression: buffer_to_text(&buf)
                     │   open task attachments                            Enter │                    
                     │  ↑↓ / Ctrl-N/P navigate · Enter run · Esc cancel         │                    
                     └──────────────────────────────────────────────────────────┘                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

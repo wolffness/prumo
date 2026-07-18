@@ -138,6 +138,33 @@ fn view() -> Section {
     )
 }
 
+fn advisor_shell() -> Section {
+    (
+        tr("ADVISOR & SHELL", "ADVISOR E SHELL"),
+        vec![
+            (
+                "/ then ! cmd",
+                tr("run a shell command", "rodar comando de shell"),
+            ),
+            (
+                "advisor on/off +p",
+                tr(
+                    "toggle advisor per project",
+                    "liga/desliga advisor no projeto",
+                ),
+            ),
+            (
+                "advisor link",
+                tr("link a GitHub repo", "vincular repo do GitHub"),
+            ),
+            (
+                "advisor prioritize",
+                tr("AI prioritize on projects", "priorizar com IA nos projetos"),
+            ),
+        ],
+    )
+}
+
 fn system() -> Section {
     (
         tr("SYSTEM", "SISTEMA"),
@@ -209,7 +236,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         theme,
         inner.width,
         &[navigation(), editing(), system()],
-        &[view(), notes_files()],
+        &[view(), notes_files(), advisor_shell()],
     );
     let kb_height = u16::try_from(kb_lines.len()).unwrap_or(u16::MAX);
 
@@ -335,5 +362,24 @@ fn pad_str(s: &str, w: usize) -> String {
         let mut o = s.to_string();
         o.push_str(&" ".repeat(w - len));
         o
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::advisor_shell;
+
+    #[test]
+    fn advisor_shell_section_lists_shell_and_advisor_commands() {
+        let (title, items) = advisor_shell();
+        assert!(title.contains("SHELL"));
+        let keys: Vec<&str> = items.iter().map(|(k, _)| *k).collect();
+        assert!(
+            keys.iter().any(|k| k.contains('!')),
+            "falta o comando shell"
+        );
+        assert!(keys.contains(&"advisor on/off +p"));
+        assert!(keys.contains(&"advisor link"));
+        assert!(keys.contains(&"advisor prioritize"));
     }
 }

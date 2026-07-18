@@ -30,7 +30,19 @@ expression: buffer_to_text(&buf)
      │    s                 share capture QR          o / O             open / create note in │     
      │    ? / ,             help / settings           t                 attach file (drag or p│     
      │    q                 quit                      Enter             open attachments      │     
+     │                                                                                        │     
+     │                                              ADVISOR & SHELL                           │     
+     │                                                / then ! cmd      run a shell command   │     
+     │                                                advisor on/off +p toggle advisor per pro│     
+     │                                                advisor link      link a GitHub repo    │     
+     │                                                advisor prioritizeAI prioritize on proje│     
      │────────────────────────────────────────────────────────────────────────────────────────│     
+     │  FORMAT                                                                                │     
+     │    (A)               priority A-Z              due:YYYY-MM-DD    due date              │     
+     │    YYYY-MM-DD        creation / done date      rec:Nu            recur (u in d/w/m/y/b)│     
+     │    +project          project tag(s)            rec:+Nu           strict: anchor on due:│     
+     │    @context          context tag(s)            x DATE BODY       completed task prefix │     
+     │                                                                                        │     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
  HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo2

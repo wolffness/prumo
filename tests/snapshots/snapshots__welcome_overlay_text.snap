@@ -10,6 +10,12 @@ expression: buffer_to_text(&buf)
  CONTEXTS                                                                                           
    tag with @context                                                                                
                                                                                                     
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                       ┌ tuxedo · welcome ────────────────────────────────────┐                      
                       │                    ██          ██                    │                      
                       │                    ████  ██  ████                    │                      
@@ -26,6 +32,12 @@ expression: buffer_to_text(&buf)
                       │                                                      │                      
                       │                                                      │                      
                       └──────────────────────────────────────────────────────┘                      
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

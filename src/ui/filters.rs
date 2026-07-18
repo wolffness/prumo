@@ -40,7 +40,16 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     } else {
         for (name, count) in &projects {
             let active = app.filter.project.as_deref() == Some(name.as_str());
-            lines.push(filter_row(theme, "+", name, *count, active, theme.project));
+            let advisor_on = app.advisor_project_enabled(name);
+            lines.push(filter_row(
+                theme,
+                "+",
+                name,
+                *count,
+                active,
+                theme.project,
+                advisor_on,
+            ));
         }
     }
     lines.push(line_pad(theme, vec![Span::raw(" ")]));
@@ -58,7 +67,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     } else {
         for (name, count) in &contexts {
             let active = app.filter.context.as_deref() == Some(name.as_str());
-            lines.push(filter_row(theme, "@", name, *count, active, theme.context));
+            lines.push(filter_row(
+                theme,
+                "@",
+                name,
+                *count,
+                active,
+                theme.context,
+                false,
+            ));
         }
     }
 
@@ -84,7 +101,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                         && subseq_match_ci(todo::body_after_priority(&t.raw), &f.query).is_some()
                 })
                 .count();
-            lines.push(filter_row(theme, "", &f.name, count, active, theme.accent));
+            lines.push(filter_row(
+                theme,
+                "",
+                &f.name,
+                count,
+                active,
+                theme.accent,
+                false,
+            ));
         }
     }
 
@@ -92,6 +117,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(para, area);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn filter_row<'a>(
     theme: &Theme,
     sigil: &str,
@@ -99,6 +125,7 @@ fn filter_row<'a>(
     count: usize,
     active: bool,
     sigil_color: ratatui::style::Color,
+    advisor_on: bool,
 ) -> Line<'a> {
     let bg = if active { theme.selected } else { theme.panel };
     let prefix = if active { "▸ " } else { "  " };
@@ -107,13 +134,22 @@ fn filter_row<'a>(
         let pad = 16 - padded.chars().count();
         padded.push_str(&" ".repeat(pad));
     }
+    // Coluna-marcador do advisor: `✦` quando ligado, espaço quando não —
+    // presença/ausência de símbolo, não cor (acessível a daltônicos).
+    let marker = advisor_marker(advisor_on);
     Line::from(vec![
-        Span::raw(" "),
+        Span::styled(marker.to_string(), Style::default().fg(theme.accent)),
         Span::styled(prefix.to_string(), Style::default().fg(theme.accent)),
         Span::styled(padded, Style::default().fg(sigil_color)),
         Span::styled(format!("{:>3}", count), Style::default().fg(theme.dim)),
     ])
     .style(Style::default().bg(bg))
+}
+
+/// Símbolo do indicador de advisor de um projeto: `✦` quando ligado, espaço
+/// quando não. Isolado para teste puro.
+pub fn advisor_marker(on: bool) -> &'static str {
+    if on { "✦" } else { " " }
 }
 
 fn hint_row<'a>(theme: &Theme, token: &'a str, token_color: ratatui::style::Color) -> Line<'a> {
@@ -130,4 +166,15 @@ fn hint_row<'a>(theme: &Theme, token: &'a str, token_color: ratatui::style::Colo
 
 fn line_pad<'a>(theme: &Theme, spans: Vec<Span<'a>>) -> Line<'a> {
     Line::from(spans).style(Style::default().bg(theme.panel))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::advisor_marker;
+
+    #[test]
+    fn advisor_marker_shows_star_only_when_on() {
+        assert_eq!(advisor_marker(true), "✦");
+        assert_eq!(advisor_marker(false), " ");
+    }
 }

@@ -8,16 +8,22 @@ expression: buffer_to_text(&buf)
    +work             4      1 ▸ (A) Finish Q2 board deck +work @la created   2026-05-01             
    +health           3      2   (A) Call dentist to reschedule cle due       2026-05-06  today      
    +finance          2     (3)  PRIORITY B  ────────────────────── projects  +work                  
-   +home            ┌ tuxedo · command ────────────────────────────────────────┐ptop                
-   +learning        │ > arch█  4 matches                                       │                    
-   +personal        │──────────────────────────────────────────────────────────│                    
-   +travel          │ ▶ archive completed tasks                              A │                    
+   +home             1      3   (B) Review pull requests for auth  contexts  @laptop                
+   +learning         1      4   (B) Renew passport before summer t                                  
+   +personal         1      5   (B) Draft hiring rubric for senior                                  
+   +travel           1     (2)  PRIORITY C  ──────────────────────                                  
+                            6   (C) Pay quarterly estimated taxes                                   
+ CONTEXTS                   7   (C) Order new running shoes +healt                                  
+   @errands         ┌ tuxedo · command ────────────────────────────────────────┐                    
+   @home            │ > arch█  4 matches                                       │                    
+   @laptop          │──────────────────────────────────────────────────────────│                    
+   @phone           │ ▶ archive completed tasks                              A │                    
                     │   toggle archive view                                  a │                    
- CONTEXTS           │   fuzzy search                                         / │                    
-   @errands         │   save search as filter                               fs │                    
-   @home            │                                                          │                    
-   @laptop          │                                                          │                    
-   @phone           │                                                          │                    
+                    │   fuzzy search                                         / │                    
+                    │   save search as filter                               fs │                    
+                    │                                                          │                    
+                    │                                                          │                    
+                    │                                                          │                    
                     │                                                          │                    
                     │                                                          │                    
                     │                                                          │                    
@@ -28,6 +34,12 @@ expression: buffer_to_text(&buf)
                     │                                                          │                    
                     │  ↑↓ / Ctrl-N/P navigate · Enter run · Esc cancel         │                    
                     └──────────────────────────────────────────────────────────┘                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

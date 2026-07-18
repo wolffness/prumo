@@ -586,12 +586,10 @@ fn print_rows(tasks: &[Task], idxs: &[usize], width: usize) {
     }
 }
 
-/// `advisor <sub> [+projeto]`: opt-in AI suggestion sobre o todo file + issues
-/// do GitHub vinculadas. Read-only — imprime a sugestão; nunca escreve. Off a
-/// menos que `advisor = on`.
+/// `advisor <sub> [+projeto]`: sugestão de IA opt-in **por projeto**. Read-only
+/// — imprime a sugestão; nunca escreve no todo.txt. Subcomandos: `on`/`off`
+/// (liga/desliga um projeto), `link` (vincula repo GitHub), `prioritize`.
 fn cmd_advisor(store: &Store, pos: &[String]) -> i32 {
-    use crate::advisor::{self, AdvisorConfig, Task_, github};
-
     // Separa o subcomando do filtro `+projeto` (qualquer ordem).
     let mut sub = "prioritize";
     let mut project: Option<&str> = None;
@@ -603,45 +601,106 @@ fn cmd_advisor(store: &Store, pos: &[String]) -> i32 {
         }
     }
 
-    if sub == "link" {
-        return cmd_advisor_link();
-    }
-
-    let kind = match sub {
-        "prioritize" | "pri" | "priorizar" => Task_::Prioritize,
+    match sub {
+        "link" => cmd_advisor_link(),
+        "on" | "off" => cmd_advisor_toggle(project, sub == "on"),
+        "prioritize" | "pri" | "priorizar" => cmd_advisor_prioritize(store, project),
         other => {
             eprintln!(
-                "{}: unknown advisor command: {other} (try `prioritize` or `link`)",
+                "{}: unknown advisor command: {other} (try `on`/`off`/`link`/`prioritize`)",
                 crate::brand::app_name()
+            );
+            2
+        }
+    }
+}
+
+/// `advisor on|off +projeto`: liga/desliga o advisor para um projeto, gravando
+/// no config. Exige o `+projeto`.
+fn cmd_advisor_toggle(project: Option<&str>, on: bool) -> i32 {
+    let name = match project {
+        Some(p) => p,
+        None => {
+            eprintln!(
+                "{}: informe o projeto, ex.: `advisor {} +trabalho`",
+                crate::brand::app_name(),
+                if on { "on" } else { "off" }
             );
             return 2;
         }
     };
+    let mut cfg = crate::config::Config::load();
+    let pos = cfg.advisor_projects.iter().position(|p| p == name);
+    match (on, pos) {
+        (true, None) => cfg.advisor_projects.push(name.to_string()),
+        (false, Some(i)) => {
+            cfg.advisor_projects.remove(i);
+        }
+        _ => {} // já no estado desejado
+    }
+    if let Err(e) = cfg.save() {
+        eprintln!(
+            "{}: não consegui salvar o config: {e}",
+            crate::brand::app_name()
+        );
+        return 1;
+    }
+    println!(
+        "advisor {} para +{name}",
+        if on { "ligado" } else { "desligado" }
+    );
+    0
+}
+
+/// `advisor prioritize [+projeto]`: prioriza os projetos com o advisor ligado
+/// (todos, ou só `+projeto`), incluindo as issues do GitHub vinculadas.
+fn cmd_advisor_prioritize(store: &Store, project: Option<&str>) -> i32 {
+    use crate::advisor::{self, AdvisorConfig, Task_, github};
 
     let cfg = crate::config::Config::load();
-    let advisor_cfg = AdvisorConfig::resolve(
-        cfg.advisor.unwrap_or(false),
-        cfg.advisor_backend.as_deref(),
-        cfg.advisor_model.as_deref(),
-    );
 
-    // Tarefas locais + issues do GitHub dos repos vinculados (respeitando o
-    // filtro de projeto). Falha no gh degrada: avisa e segue só com o local.
-    let mut lines = advisor::local_lines(store.tasks(), project);
-    for (proj, repo) in &cfg.advisor_links {
-        if project.is_some_and(|p| p != proj.as_str()) {
-            continue;
+    // Projetos-alvo: o `+projeto` pedido (se ligado) ou todos os ligados.
+    let targets: Vec<String> = match project {
+        Some(p) => {
+            if !cfg.advisor_projects.iter().any(|x| x == p) {
+                eprintln!(
+                    "{}: advisor desligado para +{p} — ligue com `advisor on +{p}`",
+                    crate::brand::app_name()
+                );
+                return 1;
+            }
+            vec![p.to_string()]
         }
-        match github::open_issue_lines(repo, proj) {
-            Ok(mut gh_lines) => lines.append(&mut gh_lines),
-            Err(e) => eprintln!(
-                "{}: aviso: não consegui puxar issues de {repo}: {e}",
-                crate::brand::app_name()
-            ),
+        None => cfg.advisor_projects.clone(),
+    };
+    if targets.is_empty() {
+        eprintln!(
+            "{}: nenhum projeto com advisor ligado — ligue com `advisor on +projeto`",
+            crate::brand::app_name()
+        );
+        return 1;
+    }
+
+    let advisor_cfg =
+        AdvisorConfig::resolve(cfg.advisor_backend.as_deref(), cfg.advisor_model.as_deref());
+
+    // Para cada projeto ligado: tarefas locais + issues do GitHub vinculadas.
+    // Falha no gh degrada: avisa e segue só com o local.
+    let mut lines = Vec::new();
+    for proj in &targets {
+        lines.extend(advisor::local_lines(store.tasks(), Some(proj)));
+        if let Some((_, repo)) = cfg.advisor_links.iter().find(|(p, _)| p == proj) {
+            match github::open_issue_lines(repo, proj) {
+                Ok(mut gh_lines) => lines.append(&mut gh_lines),
+                Err(e) => eprintln!(
+                    "{}: aviso: não consegui puxar issues de {repo}: {e}",
+                    crate::brand::app_name()
+                ),
+            }
         }
     }
 
-    match advisor::advise(&advisor_cfg, kind, &lines) {
+    match advisor::advise(&advisor_cfg, Task_::Prioritize, &lines) {
         Ok(text) => {
             println!("{text}");
             0

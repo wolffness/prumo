@@ -6,18 +6,24 @@ expression: buffer_to_text(&buf)
                                                                                                     
  PROJECTS                  (2)  PRIORITY A  ────────────────────── priority  (A)                    
    +work             4      1 ▸ (A) Finish Q2 board deck +work @la created   2026-05-01             
-   +health          ┌ * Write PR summary · note ───────────────────────────────┐6-05-06  today      
-   +finance         │# Write PR summary                                        │rk                  
-   +home            │                                                          │ptop                
-   +learning        │Some context about the task.                              │                    
-   +personal        │                                                          │                    
-   +travel          │- [ ] draft outline                                       │                    
+   +health           3      2   (A) Call dentist to reschedule cle due       2026-05-06  today      
+   +finance          2     (3)  PRIORITY B  ────────────────────── projects  +work                  
+   +home             1      3   (B) Review pull requests for auth  contexts  @laptop                
+   +learning         1      4   (B) Renew passport before summer t                                  
+   +personal         1      5   (B) Draft hiring rubric for senior                                  
+   +travel           1     (2)  PRIORITY C  ──────────────────────                                  
+                    ┌ * Write PR summary · note ───────────────────────────────┐                    
+ CONTEXTS           │# Write PR summary                                        │                    
+   @errands         │                                                          │                    
+   @home            │Some context about the task.                              │                    
+   @laptop          │                                                          │                    
+   @phone           │- [ ] draft outline                                       │                    
                     │- [x] collect links                                       │                    
- CONTEXTS           │> reviewer prefers short PRs                              │                    
-   @errands         │One very long paragraph line that certainly exceeds the pa│                    
-   @home            │nel width and must hard-wrap onto multiple display rows wi│                    
-   @laptop          │thout losing the cursor.                                  │                    
-   @phone           │                                                          │                    
+                    │> reviewer prefers short PRs                              │                    
+                    │One very long paragraph line that certainly exceeds the pa│                    
+                    │nel width and must hard-wrap onto multiple display rows wi│                    
+                    │thout losing the cursor.                                  │                    
+                    │                                                          │                    
                     │                                                          │                    
                     │                                                          │                    
                     │                                                          │                    
@@ -30,6 +36,12 @@ expression: buffer_to_text(&buf)
                     │                                                          │                    
                     │ i edit · Space toggle · n subtask · o editor · Esc/q clos│                    
                     └──────────────────────────────────────────────────────────┘                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
                                                                                                     
                                                                                                     
                                                                                                     

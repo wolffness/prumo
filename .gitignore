@@ -2,3 +2,6 @@
 .idea/
 target
 dist/
+
+# Snapshots pendentes do insta (regeneráveis; nunca versionar)
+*.snap.new

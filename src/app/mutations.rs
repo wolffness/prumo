@@ -434,6 +434,17 @@ mod tests {
     use crate::config::Config;
 
     #[test]
+    fn advisor_project_enabled_reads_from_config() {
+        let cfg = Config {
+            advisor_projects: vec!["ShelfFlow".into()],
+            ..Config::default()
+        };
+        let app = build_app_with_config("Ajustar +ShelfFlow\nComprar +casa\n", cfg);
+        assert!(app.advisor_project_enabled("ShelfFlow"));
+        assert!(!app.advisor_project_enabled("casa"));
+    }
+
+    #[test]
     fn commit_search_queues_shell_for_bang_prefix() {
         use crate::app::types::Mode;
         let mut app = build_app("comprar pão +casa\n");

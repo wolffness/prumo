@@ -11,7 +11,7 @@ pub mod github;
 
 use std::process::Command;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 
 use crate::todo::Task;
 
@@ -46,7 +46,6 @@ impl Backend {
 /// Resolved advisor settings, derived from [`crate::config::Config`].
 #[derive(Debug, Clone)]
 pub struct AdvisorConfig {
-    pub enabled: bool,
     pub backend: Backend,
     /// Effective model — the configured value, or the backend default.
     pub model: String,
@@ -54,19 +53,16 @@ pub struct AdvisorConfig {
 
 impl AdvisorConfig {
     /// Build from the raw config fields. Falls back to Ollama when the backend
-    /// string is missing or unrecognized.
-    pub fn resolve(enabled: bool, backend: Option<&str>, model: Option<&str>) -> Self {
+    /// string is missing or unrecognized. O gating (quais projetos têm o
+    /// advisor ligado) é decidido pelo chamador, não aqui.
+    pub fn resolve(backend: Option<&str>, model: Option<&str>) -> Self {
         let backend = backend.and_then(Backend::parse).unwrap_or(Backend::Ollama);
         let model = model
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(str::to_string)
             .unwrap_or_else(|| backend.default_model().to_string());
-        Self {
-            enabled,
-            backend,
-            model,
-        }
+        Self { backend, model }
     }
 }
 
@@ -96,12 +92,6 @@ pub fn local_lines(tasks: &[Task], project: Option<&str>) -> Vec<String> {
 /// montados), returning the model's suggestion as plain text. The caller
 /// prints it; nothing is written to disk.
 pub fn advise(cfg: &AdvisorConfig, kind: Task_, lines: &[String]) -> Result<String> {
-    if !cfg.enabled {
-        bail!(
-            "advisor is off. Enable it in config.toml with `advisor = on`, \
-             then set `advisor_backend = ollama` (default) or `claude`."
-        );
-    }
     if lines.is_empty() {
         return Ok("Nenhuma tarefa aberta para priorizar.".to_string());
     }
@@ -347,16 +337,16 @@ mod tests {
 
     #[test]
     fn resolve_falls_back_to_ollama_and_default_model() {
-        let c = AdvisorConfig::resolve(true, None, None);
+        let c = AdvisorConfig::resolve(None, None);
         assert_eq!(c.backend, Backend::Ollama);
         assert_eq!(c.model, "llama3.2");
 
-        let c = AdvisorConfig::resolve(true, Some("claude"), Some("claude-sonnet-5"));
+        let c = AdvisorConfig::resolve(Some("claude"), Some("claude-sonnet-5"));
         assert_eq!(c.backend, Backend::Claude);
         assert_eq!(c.model, "claude-sonnet-5");
 
         // Unknown backend → ollama; blank model → default.
-        let c = AdvisorConfig::resolve(true, Some("xyz"), Some("  "));
+        let c = AdvisorConfig::resolve(Some("xyz"), Some("  "));
         assert_eq!(c.backend, Backend::Ollama);
         assert_eq!(c.model, "llama3.2");
     }

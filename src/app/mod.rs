@@ -145,6 +145,9 @@ pub struct App {
     /// User-named saved searches, loaded from config at startup and
     /// upserted via `fs`. Recalled with the `ff` picker.
     pub saved_filters: Vec<SavedFilter>,
+    /// Projetos com o advisor ligado, lido do config. Usado só para o
+    /// indicador `✦` no painel PROJETOS; a alternância é via comando CLI.
+    pub advisor_projects: Vec<String>,
     /// The search string that was active when the `ff` picker opened, so
     /// cancelling (`Esc`) restores it instead of leaving the previewed
     /// filter applied. `None` outside `Mode::PickSavedFilter`.
@@ -231,6 +234,7 @@ impl App {
                 query: query.clone(),
             })
             .collect();
+        let advisor_projects = cfg.advisor_projects.clone();
         let mut app = Self {
             store,
             view: View::List,
@@ -251,6 +255,7 @@ impl App {
             latest_version: None,
             update_check: None,
             saved_filters,
+            advisor_projects,
             saved_pick_restore: None,
             saved_pick_idx: 0,
             command_palette: CommandPaletteState::default(),
@@ -834,8 +839,14 @@ impl App {
                 query: query.clone(),
             })
             .collect();
+        self.advisor_projects = new_cfg.advisor_projects.clone();
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
+    }
+
+    /// `true` se o projeto tem o advisor ligado (para o indicador `✦`).
+    pub fn advisor_project_enabled(&self, name: &str) -> bool {
+        self.advisor_projects.iter().any(|p| p == name)
     }
 
     /// Reconcile against disk and drain the inbox. Returns `true` when it is
