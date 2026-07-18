@@ -588,7 +588,7 @@ novo para salvar.
 Vocabulário reconhecido:
 
 - **Datas (pt-BR e inglês)** — `hoje`, `amanhã`, `ontem`, dias da semana (`segunda` / `seg` …), `para/até sexta`, `em 3 dias`, meses (`15 de junho`), ISO `2026-05-15`.
-- **Recorrência (pt-BR e inglês)** — `toda sexta`, `todo dia 2` (mensal ancorado no dia), `a cada 15 dias`, `quinzenalmente`, `daily`, `every business day`, e variações.
+- **Recorrência (pt-BR e inglês)** — `toda sexta`, `todo dia 2` / `todo dia primeiro` / `todo dia último` (mensal ancorado no dia), `a cada 15 dias`, `quinzenalmente`, `daily`, `every business day`, e variações.
 - **Antecedência em prosa (pt-BR e inglês)** — `mostrar 3 dias antes`, `2 semanas antes do vencimento`, `show 3 days before due`.
 - **Projeto / contexto em prosa (pt-BR e inglês)** — `projeto casa`, `contexto banco`, `project home`, `context bank`, ou os sigilos padrão `+casa` / `@banco`.
 - **Prioridade em prosa (pt-BR e inglês)** — `prioridade alta` → A, `prioridade média` → B, `prioridade baixa` → C, `prioridade a`, também invertido (`alta prioridade`), e as formas em inglês (`high priority`).

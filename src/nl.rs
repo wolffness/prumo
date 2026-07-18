@@ -554,11 +554,13 @@ fn unit_char(s: &str) -> Option<char> {
 // ---------------------------------------------------------------------------
 
 /// What the recurrence phrase anchors the first due date to: a weekday
-/// ("toda sexta") or a day of the month ("todo dia 2").
+/// ("toda sexta"), a day of the month ("todo dia 2" / "todo dia primeiro"),
+/// or the last day of the month ("todo dia último").
 #[derive(Debug, Clone, Copy)]
 enum RecHint {
     Weekday(Weekday),
     MonthDay(u32),
+    MonthLastDay,
 }
 
 fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<RecHint> {
@@ -620,13 +622,13 @@ fn parse_every_phrase(
     }
     let w1 = scratch.word_lc(words[i + 1]);
 
-    // "todo dia 2": monthly recurrence anchored on that day of the month.
+    // "todo dia 2" / "todo dia primeiro" / "todo dia último": monthly
+    // recurrence anchored on that day of the month.
     if w1 == "dia"
         && i + 2 < words.len()
-        && let Some(n) = parse_number(scratch.word_lc(words[i + 2]))
-        && (1..=31).contains(&n)
+        && let Some(hint) = parse_month_day_anchor(scratch.word_lc(words[i + 2]))
     {
-        return Some(("+1m".to_string(), 3, Some(RecHint::MonthDay(n))));
+        return Some(("+1m".to_string(), 3, Some(hint)));
     }
 
     if w1 == "weekday" {
@@ -669,6 +671,19 @@ fn parse_every_phrase(
 
     let unit = unit_char(w1)?;
     Some((format!("+1{unit}"), 2, None))
+}
+
+/// Resolve the day-of-month anchor word after "dia": a number `1..=31`,
+/// "primeiro" (day 1), or "último"/"ultimo" (last day of the month).
+fn parse_month_day_anchor(s: &str) -> Option<RecHint> {
+    match s {
+        "primeiro" => Some(RecHint::MonthDay(1)),
+        "\u{fa}ltimo" | "ultimo" => Some(RecHint::MonthLastDay),
+        _ => {
+            let n = parse_number(s)?;
+            (1..=31).contains(&n).then_some(RecHint::MonthDay(n))
+        }
+    }
 }
 
 fn parse_weekday(s: &str) -> Option<Weekday> {
@@ -723,6 +738,11 @@ fn pass_date(scratch: &mut Scratch, p: &mut ParsedNl, today: NaiveDate, rec_hint
                     p.due = Some(d);
                 }
             }
+            Some(RecHint::MonthLastDay) => {
+                if let Some(d) = month_last_day(today) {
+                    p.due = Some(d);
+                }
+            }
             None => {}
         }
     }
@@ -744,6 +764,14 @@ fn next_month_day(today: NaiveDate, day: u32) -> Option<NaiveDate> {
         }
     }
     None
+}
+
+/// Last day of `today`'s month — the first day of next month minus one.
+/// The anchor is always in the current month (the last day can't be in the
+/// past relative to today), so no forward search is needed.
+fn month_last_day(today: NaiveDate) -> Option<NaiveDate> {
+    let first_next = today.checked_add_months(Months::new(1))?.with_day(1)?;
+    first_next.pred_opt()
 }
 
 /// Try every supported date phrase starting at `words[i]`. Returns the
@@ -1693,6 +1721,44 @@ mod tests {
         let parsed = try_parse("Pagar boleto amanhã 2 semanas antes do vencimento", today).unwrap();
         assert_eq!(parsed.body, "Pagar boleto");
         assert_eq!(parsed.threshold.as_deref(), Some("-2w"));
+    }
+
+    #[test]
+    fn parses_portuguese_monthly_word_anchors() {
+        let today = d("2026-05-11");
+
+        // "primeiro" → day 1, next occurrence is next month's 1st.
+        let parsed = try_parse("Pagar aluguel todo dia primeiro", today).unwrap();
+        assert_eq!(parsed.body, "Pagar aluguel");
+        assert_eq!(parsed.rec.as_deref(), Some("+1m"));
+        assert_eq!(parsed.due, Some(d("2026-06-01")));
+
+        // "último" → last day of the current month (May has 31 days).
+        let parsed = try_parse("Fechar caixa todo dia último", today).unwrap();
+        assert_eq!(parsed.body, "Fechar caixa");
+        assert_eq!(parsed.rec.as_deref(), Some("+1m"));
+        assert_eq!(parsed.due, Some(d("2026-05-31")));
+
+        // Unaccented "ultimo" works too.
+        assert_eq!(
+            try_parse("Fechar caixa todo dia ultimo", today)
+                .unwrap()
+                .due,
+            Some(d("2026-05-31"))
+        );
+    }
+
+    #[test]
+    fn monthly_last_day_handles_february() {
+        // February has 28 days in 2026 — the last-day anchor must not clamp
+        // to a non-existent Feb 30/31.
+        let today = d("2026-02-10");
+        assert_eq!(
+            try_parse("Fechar caixa todo dia último", today)
+                .unwrap()
+                .due,
+            Some(d("2026-02-28"))
+        );
     }
 
     #[test]
