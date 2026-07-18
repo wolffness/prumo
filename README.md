@@ -581,14 +581,17 @@ novo para salvar.
 | `Pagar aluguel todo dia 15` | `Pagar aluguel due:2026-08-15 rec:+1m` |
 | `Enviar timesheet a cada 15 dias` | `Enviar timesheet rec:+15d` |
 | `Regar plantas toda sexta` | `Regar plantas due:2026-07-24 rec:+1w` |
-| `Revisão anual 15 de abril +trabalho @escritorio` | `Revisão anual +trabalho @escritorio due:2027-04-15` |
+| `Comprar tinta projeto casa e contexto loja` | `Comprar tinta +casa @loja` |
+| `Pagar boleto amanhã mostrar 3 dias antes prioridade alta` | `(A) Pagar boleto due:2026-07-19 t:-3d` |
 | `Pay rent monthly on the first, show 3 days before due, project home` | `Pay rent +home due:2026-08-01 rec:+1m t:-3d` |
 
 Vocabulário reconhecido:
 
 - **Datas (pt-BR e inglês)** — `hoje`, `amanhã`, `ontem`, dias da semana (`segunda` / `seg` …), `para/até sexta`, `em 3 dias`, meses (`15 de junho`), ISO `2026-05-15`.
 - **Recorrência (pt-BR e inglês)** — `toda sexta`, `todo dia 2` (mensal ancorado no dia), `a cada 15 dias`, `quinzenalmente`, `daily`, `every business day`, e variações.
-- **Antecedência, projeto, contexto e prioridade em prosa (só em inglês por ora)** — `show 3 days before due`, `project home`, `context bank`, `high priority` → A. Em português, use os sigilos padrão `+casa` / `@banco` e a prioridade explícita `(A)`.
+- **Antecedência em prosa (pt-BR e inglês)** — `mostrar 3 dias antes`, `2 semanas antes do vencimento`, `show 3 days before due`.
+- **Projeto / contexto em prosa (pt-BR e inglês)** — `projeto casa`, `contexto banco`, `project home`, `context bank`, ou os sigilos padrão `+casa` / `@banco`.
+- **Prioridade em prosa (pt-BR e inglês)** — `prioridade alta` → A, `prioridade média` → B, `prioridade baixa` → C, `prioridade a`, também invertido (`alta prioridade`), e as formas em inglês (`high priority`).
 
 A interpretação é baseada em regras e roda localmente — sem chamadas de
 rede, sem chave de API. Se o texto já contém um token `due:`, `rec:` ou
