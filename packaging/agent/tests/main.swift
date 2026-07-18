@@ -44,4 +44,63 @@ let clear = computeSummary(
 check(clear.iconState == .clear, "iconState clear when nothing dated")
 check(clear.totalDated == 0, "totalDated 0 when nothing dated")
 
-print("ALL SUMMARY TESTS PASSED")
+let taggedTasks = """
+Comprar material +Admin @Rua
+x tarefa pronta +academia @Casa
+Ópera revisão +Árvore @Ação
+Admin duplicado +Admin @Rua
+"""
+let projects = CaptureTagAutocomplete.values(in: taggedTasks, kind: .project)
+let contexts = CaptureTagAutocomplete.values(in: taggedTasks, kind: .context)
+check(projects == ["academia", "Admin", "Árvore"], "projects extracted, sorted and deduplicated")
+check(contexts == ["Ação", "Casa", "Rua"], "contexts extracted independently")
+
+let projectMatches = CaptureTagAutocomplete.matches(prefix: "A", in: projects)
+check(projectMatches == ["academia", "Admin"], "project matching is case-insensitive")
+let rankedMatches = CaptureTagAutocomplete.matches(prefix: "dmi", in: ["MadMen", "Admin", "Demo"])
+check(rankedMatches == ["Admin"], "contains fallback matches after prefix search")
+check(CaptureTagAutocomplete.matches(prefix: "xyz", in: projects).isEmpty, "unknown project remains creatable")
+let manyProjects = (0..<12).map { "A\($0)" }
+check(CaptureTagAutocomplete.matches(prefix: "a", in: manyProjects).count == 8, "matches cap at eight")
+check(
+    CaptureTagAutocomplete.steppedSelection(current: 0, matchCount: 3, forward: false) == 2,
+    "selection wraps backward"
+)
+check(
+    CaptureTagAutocomplete.steppedSelection(current: 2, matchCount: 3, forward: true) == 0,
+    "selection wraps forward"
+)
+
+let draft = "Revisar amanhã +ad @r"
+let projectCursor = "Revisar amanhã +ad".utf16.count
+if let target = CaptureTagAutocomplete.target(in: draft, cursorUTF16: projectCursor) {
+    check(target.kind == .project, "project target detected after multibyte text")
+    check(target.prefix == "ad", "project prefix detected")
+    let replaced = CaptureTagAutocomplete.replacing(target: target, with: "Admin", in: draft)
+    check(replaced.text == "Revisar amanhã +Admin @r", "replacement preserves NLP date text")
+    check(replaced.cursorUTF16 == "Revisar amanhã +Admin".utf16.count, "cursor follows accepted project")
+} else {
+    check(false, "project target should exist")
+}
+
+let contextCursor = draft.utf16.count
+if let target = CaptureTagAutocomplete.target(in: draft, cursorUTF16: contextCursor) {
+    check(target.kind == .context, "context target detected")
+    check(target.prefix == "r", "context prefix detected")
+} else {
+    check(false, "context target should exist")
+}
+
+let temporaryInbox = FileManager.default.temporaryDirectory
+    .appendingPathComponent("tuxedo-agent-tests-\(UUID().uuidString).txt")
+let unmatchedTask = "Revisar amanhã +ProjetoNovo @ContextoNovo"
+check(
+    CaptureTagAutocomplete.appendCapture(unmatchedTask, to: temporaryInbox),
+    "unmatched tags persist as a new capture"
+)
+check(
+    (try? String(contentsOf: temporaryInbox, encoding: .utf8)) == unmatchedTask + "\n",
+    "capture persists the exact task for NLP processing"
+)
+
+print("ALL AGENT TESTS PASSED")

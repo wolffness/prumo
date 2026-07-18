@@ -36,3 +36,12 @@ jobs:
 
       - name: cargo test
         run: mise run test
+
+  macos-agent:
+    name: macOS agent tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compile and test the native agent
+        run: bash scripts/test-macos-agent.sh

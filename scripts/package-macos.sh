@@ -34,6 +34,7 @@ swiftc -O -o "$AGENTAPP/Contents/MacOS/PrumoAgent" \
     packaging/agent/Paths.swift \
     packaging/agent/Theme.swift \
     packaging/agent/Summary.swift \
+    packaging/agent/TagAutocomplete.swift \
     packaging/agent/TaskRowView.swift \
     packaging/agent/CapturePanel.swift \
     packaging/agent/MenuBar.swift \
