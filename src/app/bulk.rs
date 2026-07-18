@@ -80,7 +80,11 @@ mod tests {
         assert_eq!(app.tasks()[0].raw, "b");
         let archived = app.archive().tasks();
         assert_eq!(archived.len(), 2);
-        assert!(archived.iter().all(|t| t.done && t.raw.contains("done_at:")));
+        assert!(
+            archived
+                .iter()
+                .all(|t| t.done && t.raw.contains("done_at:"))
+        );
         assert!(app.selection.is_empty());
         assert_eq!(app.mode, Mode::Normal);
         assert_eq!(app.flash_active(), Some("completed 2 → archived"));

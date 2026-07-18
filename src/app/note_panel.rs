@@ -88,11 +88,8 @@ impl NotePanel {
             self.sel_anchor = None;
             return false;
         };
-        let byte = |line: &str, col: usize| {
-            line.char_indices()
-                .nth(col)
-                .map_or(line.len(), |(i, _)| i)
-        };
+        let byte =
+            |line: &str, col: usize| line.char_indices().nth(col).map_or(line.len(), |(i, _)| i);
         if r1 == r2 {
             let (s, e) = (byte(&self.lines[r1], c1), byte(&self.lines[r1], c2));
             self.lines[r1].replace_range(s..e, "");
@@ -128,16 +125,18 @@ impl NotePanel {
     /// Byte offset of character column `col` in the current line.
     fn byte_at(&self, col: usize) -> usize {
         let line = &self.lines[self.row];
-        line.char_indices()
-            .nth(col)
-            .map_or(line.len(), |(i, _)| i)
+        line.char_indices().nth(col).map_or(line.len(), |(i, _)| i)
     }
 
     pub fn clamp_col(&mut self) {
         // In Normal mode the cursor sits on a character; in Insert it may sit
         // one past the end (to append).
         let max = self.cur_line_len();
-        let max = if self.insert { max } else { max.saturating_sub(1) };
+        let max = if self.insert {
+            max
+        } else {
+            max.saturating_sub(1)
+        };
         self.col = self.col.min(max);
     }
 
@@ -150,11 +149,7 @@ impl NotePanel {
         } else if self.row > 0 {
             self.row -= 1;
             let plen = self.cur_line_len();
-            let last_start = if plen == 0 {
-                0
-            } else {
-                ((plen - 1) / w) * w
-            };
+            let last_start = if plen == 0 { 0 } else { ((plen - 1) / w) * w };
             self.col = (last_start + self.col).min(plen);
         }
         self.clamp_col();
@@ -444,7 +439,10 @@ impl NotePanel {
         if self.lines.last().is_some_and(|l| !l.trim().is_empty()) {
             self.lines.push(String::new());
         }
-        *self.lines.last_mut().expect("buffer keeps at least one line") = "- [ ] ".to_string();
+        *self
+            .lines
+            .last_mut()
+            .expect("buffer keeps at least one line") = "- [ ] ".to_string();
         self.row = self.lines.len() - 1;
         self.col = self.cur_line_len();
         self.insert = true;

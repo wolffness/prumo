@@ -552,8 +552,10 @@ fn pass_recurrence(scratch: &mut Scratch, p: &mut ParsedNl) -> Option<RecHint> {
             "yearly" | "annually" | "anualmente" => Some(("+1y".to_string(), 1, None)),
             _ => None,
         };
-        let is_every_word =
-            matches!(w, "every" | "each" | "toda" | "todo" | "todas" | "todos" | "cada");
+        let is_every_word = matches!(
+            w,
+            "every" | "each" | "toda" | "todo" | "todas" | "todos" | "cada"
+        );
         let (rec, count, wh) = if let Some(s) = standalone {
             s
         } else if is_every_word {
@@ -671,12 +673,7 @@ fn parse_weekday(s: &str) -> Option<Weekday> {
 // Pass 4: date
 // ---------------------------------------------------------------------------
 
-fn pass_date(
-    scratch: &mut Scratch,
-    p: &mut ParsedNl,
-    today: NaiveDate,
-    rec_hint: Option<RecHint>,
-) {
+fn pass_date(scratch: &mut Scratch, p: &mut ParsedNl, today: NaiveDate, rec_hint: Option<RecHint>) {
     let words = scratch.word_cache.clone();
     for i in 0..words.len() {
         if !scratch.is_live(words[i].0, words[i].1) {
@@ -760,13 +757,17 @@ fn match_date_at(
     if matches!(
         w,
         "starting" | "on" | "due" | "by" | "before" | "para" | "ate" | "at\u{e9}"
-    )
-        && let Some((d, count)) = next_alive_match(scratch, words, i + 1, today)
+    ) && let Some((d, count)) = next_alive_match(scratch, words, i + 1, today)
     {
         return Some((d, 1 + count));
     }
 
-    if (w == "this" || w == "next" || w == "esta" || w == "essa" || w == "proxima" || w == "pr\u{f3}xima")
+    if (w == "this"
+        || w == "next"
+        || w == "esta"
+        || w == "essa"
+        || w == "proxima"
+        || w == "pr\u{f3}xima")
         && i + 1 < words.len()
         && let Some(wd) = parse_weekday(scratch.word_lc(words[i + 1]))
     {

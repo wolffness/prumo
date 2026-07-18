@@ -41,7 +41,11 @@ fn main() -> Result<()> {
             return Ok(());
         }
         Some("--version") | Some("-V") => {
-            println!("{} {}", tuxedo::brand::app_name(), env!("CARGO_PKG_VERSION"));
+            println!(
+                "{} {}",
+                tuxedo::brand::app_name(),
+                env!("CARGO_PKG_VERSION")
+            );
             return Ok(());
         }
         Some("update") => {
@@ -135,7 +139,11 @@ fn main() -> Result<()> {
     // rebound to the sample. Skip the line if the user quit the welcome
     // prompt without choosing — no file was opened.
     if app_state.mode != Mode::Welcome {
-        eprintln!("{}: {}", tuxedo::brand::app_name(), app_state.file_path.display());
+        eprintln!(
+            "{}: {}",
+            tuxedo::brand::app_name(),
+            app_state.file_path.display()
+        );
     }
     result
 }
@@ -538,9 +546,7 @@ fn handle_note(app: &mut App, key: KeyEvent) {
             panel.line_end();
             panel.clamp_col();
         }
-        KeyCode::Char('x') | KeyCode::Delete | KeyCode::Backspace
-            if !panel.delete_selection() =>
-        {
+        KeyCode::Char('x') | KeyCode::Delete | KeyCode::Backspace if !panel.delete_selection() => {
             panel.delete_char_at_cursor();
         }
         KeyCode::Char('x') | KeyCode::Delete | KeyCode::Backspace => {}
@@ -1643,10 +1649,18 @@ mod tests {
         for c in "brief the client".chars() {
             handle_key(&mut app, key(c), &kb);
         }
-        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &kb,
+        );
         // Cursor is on the new subtask line: Space marks it done.
         handle_key(&mut app, key(' '), &kb);
-        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &kb,
+        );
         assert_eq!(app.mode, Mode::Normal);
 
         let body = std::fs::read_to_string(dir.join("notes/n.md")).expect("note saved");
@@ -1671,7 +1685,12 @@ mod tests {
         let todo = dir.join("todo.txt");
         let raw = "Send invoice +client\nOther task\n";
         std::fs::write(&todo, raw).expect("seed todo");
-        let mut app = App::new(todo, raw.to_string(), "2026-05-06".into(), Config::default());
+        let mut app = App::new(
+            todo,
+            raw.to_string(),
+            "2026-05-06".into(),
+            Config::default(),
+        );
         let kb = KeyBindings::default();
 
         handle_key(&mut app, key('x'), &kb);
@@ -1774,7 +1793,10 @@ mod tests {
         handle_key(&mut app, key('m'), &kb);
         assert_eq!(app.mode, Mode::Note, "m should open the note panel");
         let task_raw = app.tasks()[0].raw.clone();
-        assert!(task_raw.contains("note:"), "note token appended: {task_raw}");
+        assert!(
+            task_raw.contains("note:"),
+            "note token appended: {task_raw}"
+        );
         assert!(
             app.note_panel.as_ref().is_some_and(|p| p.insert),
             "blank panel-created note starts in insert mode"
@@ -1783,9 +1805,17 @@ mod tests {
         for c in "hello código".chars() {
             handle_key(&mut app, key(c), &kb);
         }
-        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &kb,
+        );
         assert_eq!(app.mode, Mode::Note, "first Esc only leaves insert");
-        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &kb);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &kb,
+        );
         assert_eq!(app.mode, Mode::Normal, "second Esc closes the panel");
         assert!(app.note_panel.is_none());
 

@@ -75,8 +75,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 let e = e.min(chunk_start + chunk_len);
                 (s < e).then(|| (s - chunk_start, e - chunk_start))
             });
-            let cursor_local = (i == panel.row && ci == cursor_chunk)
-                .then(|| panel.col - cursor_chunk * wrap_w);
+            let cursor_local =
+                (i == panel.row && ci == cursor_chunk).then(|| panel.col - cursor_chunk * wrap_w);
             // Chunks carrying the cursor or a selection get char-precise
             // spans (dropping Markdown coloring there); plain chunks keep
             // the line-level Markdown styling.
@@ -85,10 +85,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             } else if ci == 0 {
                 markdown_line(theme, chunk)
             } else {
-                Line::from(Span::styled(
-                    chunk.clone(),
-                    Style::default().fg(theme.fg),
-                ))
+                Line::from(Span::styled(chunk.clone(), Style::default().fg(theme.fg)))
             };
             lines.push(line);
         }
@@ -159,7 +156,9 @@ pub(crate) fn markdown_line(theme: &Theme, raw: &str) -> Line<'static> {
             .fg(theme.accent)
             .add_modifier(Modifier::BOLD)
     } else if trimmed.starts_with("> ") || trimmed == ">" {
-        Style::default().fg(theme.dim).add_modifier(Modifier::ITALIC)
+        Style::default()
+            .fg(theme.dim)
+            .add_modifier(Modifier::ITALIC)
     } else if trimmed.starts_with("```") {
         Style::default().fg(theme.dim)
     } else {
