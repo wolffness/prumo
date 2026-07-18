@@ -118,9 +118,9 @@ else
 fi
 
 # --- 8. Reinstalar o app com a atualizacao ---------------------------------
-if confirm "Reinstalar o app do Tuxedo com esta atualizacao?"; then
+if confirm "Reinstalar o app do Prumo com esta atualizacao?"; then
   ./scripts/package-macos.sh
-  echo "✅ App reinstalado. Reabra o Tuxedo pelo icone."
+  echo "✅ App reinstalado. Reabra o Prumo pelo icone."
 else
   echo "→ Pulei o reempacotamento. Rode './scripts/package-macos.sh' quando quiser."
 fi

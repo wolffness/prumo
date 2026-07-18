@@ -1,4 +1,4 @@
-// Native launcher for Tuxedo.app: opens the tuxedo TUI in an iTerm2 (or
+// Native launcher for Prumo.app: opens the prumo TUI in an iTerm2 (or
 // Terminal.app) window and stays alive while it runs, so the Dock icon
 // behaves like a real app — no infinite bounce (a bare shell-script
 // launcher never reports "finished launching"), a running dot while the
@@ -9,15 +9,15 @@ final class Launcher: NSObject, NSApplicationDelegate {
     var bin = ""
 
     func applicationDidFinishLaunching(_ note: Notification) {
-        bin = Bundle.main.resourcePath! + "/tuxedo"
+        bin = Bundle.main.resourcePath! + "/prumo"
         openWindow()
         watchForExit()
     }
 
-    /// Dock icon clicked while running: bring the existing Tuxedo window to the
-    /// front if tuxedo is alive, otherwise open a fresh window.
+    /// Dock icon clicked while running: bring the existing Prumo window to the
+    /// front if prumo is alive, otherwise open a fresh window.
     func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if tuxedoRunning() {
+        if prumoRunning() {
             focusExistingWindow()
         } else {
             openWindow()
@@ -25,8 +25,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
         return false
     }
 
-    /// Raise the specific terminal window running Tuxedo. openWindow names the
-    /// session "Tuxedo", so we select that exact window/tab; `activate` alone
+    /// Raise the specific terminal window running Prumo. openWindow names the
+    /// session "Prumo", so we select that exact window/tab; `activate` alone
     /// would only surface iTerm's last-used window, which may be unrelated
     /// work. If the named session isn't found (e.g. the title was overwritten),
     /// activate still brought the terminal forward.
@@ -39,7 +39,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 repeat with w in windows
                     repeat with t in tabs of w
                         repeat with s in sessions of t
-                            if name of s contains "Tuxedo" then
+                            if name of s contains "Prumo" then
                                 select w
                                 select t
                                 return
@@ -68,8 +68,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 set opened to false
                 repeat with i from 1 to 20
                     try
-                        set tuxWin to (create window with profile "Tuxedo")
-                        tell current session of tuxWin to set name to "Tuxedo"
+                        set tuxWin to (create window with profile "Prumo")
+                        tell current session of tuxWin to set name to "Prumo"
                         set opened to true
                         exit repeat
                     on error
@@ -79,7 +79,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 if not opened then
                     set w to (create window with default profile)
                     tell current session of w
-                        set name to "Tuxedo"
+                        set name to "Prumo"
                         write text "cd \\"$HOME\\"; clear; exec '\(bin)'"
                     end tell
                 end if
@@ -90,8 +90,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
             tell application "Terminal"
                 activate
                 set t to do script "cd \\"$HOME\\"; clear; exec '\(bin)'"
-                if exists settings set "Tuxedo" then
-                    set current settings of t to settings set "Tuxedo"
+                if exists settings set "Prumo" then
+                    set current settings of t to settings set "Prumo"
                 end if
             end tell
             """
@@ -109,11 +109,11 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
     func permissionAlert() {
         let a = NSAlert()
-        a.messageText = "Tuxedo precisa de permissão"
+        a.messageText = "Prumo precisa de permissão"
         a.informativeText = """
-        Autorize o Tuxedo a controlar o iTerm2 em:
-        Ajustes do Sistema → Privacidade e Segurança → Automação → Tuxedo
-        Depois, abra o Tuxedo de novo.
+        Autorize o Prumo a controlar o iTerm2 em:
+        Ajustes do Sistema → Privacidade e Segurança → Automação → Prumo
+        Depois, abra o Prumo de novo.
         """
         a.addButton(withTitle: "Abrir Ajustes")
         a.addButton(withTitle: "OK")
@@ -136,8 +136,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
         {
           "Profiles": [
             {
-              "Name": "Tuxedo",
-              "Guid": "tuxedo-phosphor-green",
+              "Name": "Prumo",
+              "Guid": "prumo-phosphor-green",
               "Normal Font": "IBMPlexMono-Regular 15",
               "Use Non-ASCII Font": false,
               "Custom Command": "Yes",
@@ -152,15 +152,15 @@ final class Launcher: NSObject, NSApplicationDelegate {
           ]
         }
         """
-        try? Data(json.utf8).write(to: dir.appendingPathComponent("tuxedo.json"))
+        try? Data(json.utf8).write(to: dir.appendingPathComponent("prumo.json"))
     }
 
-    func tuxedoRunning() -> Bool {
+    func prumoRunning() -> Bool {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
         // Anchor to end-of-line ($) so we match ONLY the bare TUI binary and
         // not siblings whose command line merely *starts* with this path —
-        // e.g. a stray `.../Resources/tuxedo-capture.sh`. Without the anchor,
+        // e.g. a stray `.../Resources/prumo-capture.sh`. Without the anchor,
         // pgrep's substring match false-positives on such a process, which
         // makes the launcher think the TUI is alive forever: it never quits
         // (stale Dock app) and Dock-icon reopens just focus the terminal
@@ -178,7 +178,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
     func watchForExit() {
         DispatchQueue.global().async { [weak self] in
             Thread.sleep(forTimeInterval: 45)
-            while let self, self.tuxedoRunning() {
+            while let self, self.prumoRunning() {
                 Thread.sleep(forTimeInterval: 5)
             }
             DispatchQueue.main.async { NSApp.terminate(nil) }

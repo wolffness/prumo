@@ -1,12 +1,15 @@
-# tuxedo
+# Prumo
 
-A fast, keyboard-driven terminal UI for [todo.txt](http://todotxt.org/).
-Vim-style bindings, atomic writes, instant external-edit detection, and five
-hand-tuned themes — all in a single static binary.
+**Prumo** é um app de tarefas para te manter no prumo — pensado para
+cérebros TDAH/TEA, com linguagem natural em português brasileiro, captura
+rápida global (`⌥]`) e resumo na barra de menu do macOS. É um fork do
+[tuxedo](https://github.com/webstonehq/tuxedo): uma TUI rápida para
+[todo.txt](http://todotxt.org/), com atalhos vim, escrita atômica e temas —
+tudo em um único binário estático.
 
-```sh
-brew install tuxedo
-```
+> O núcleo Rust mantém o nome `tuxedo` (binário e paths de config) para que
+> as atualizações do upstream continuem baratas; apenas a "casca" macOS
+> (app, agente, ícone) usa o nome Prumo.
 
 [![CI](https://github.com/webstonehq/tuxedo/actions/workflows/ci.yml/badge.svg)](https://github.com/webstonehq/tuxedo/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/webstonehq/tuxedo?logo=github)](https://github.com/webstonehq/tuxedo/releases/latest)
@@ -19,7 +22,7 @@ For a more in-depth walkthrough, please watch [this video](https://www.youtube.c
 
 ## About this fork
 
-This fork ([wolffness/tuxedo](https://github.com/wolffness/tuxedo)) layers a
+This fork ([wolffness/prumo](https://github.com/wolffness/prumo)) layers a
 set of personal-workflow features on top of
 [webstonehq/tuxedo](https://github.com/webstonehq/tuxedo). Everything below
 is fork-only; the upstream docs that follow still apply.
@@ -49,7 +52,7 @@ is fork-only; the upstream docs that follow still apply.
   is the factory default; the classic amber accents mark subtask progress.
   On bright cursor backgrounds the selected row flips to reverse video.
 - **macOS app bundle.** `./scripts/package-macos.sh` builds and installs
-  `/Applications/Tuxedo.app` — pixel-art CRT icon, opens in iTerm2 (or
+  `/Applications/Prumo.app` — pixel-art CRT icon, opens in iTerm2 (or
   Terminal.app) with an IBM Plex Mono phosphor profile, honors
   `TODO_FILE`/`TODO_DIR` from your login shell.
 - **Native quick capture (`⌥]`).** A tiny AppKit agent (installed by the
@@ -205,11 +208,10 @@ Requires the Rust 2024 edition (recent stable toolchain).
 
 ```sh
 ./scripts/package-macos.sh
-cp -R dist/Tuxedo.app /Applications/
 ```
 
-Builds `dist/Tuxedo.app`: a Dock/Spotlight-launchable bundle that opens
-tuxedo in a dedicated Terminal window. The launcher runs in your login
+Builds and installs `/Applications/Prumo.app`: a Dock/Spotlight-launchable
+bundle that opens the TUI in a dedicated terminal window. The launcher runs in your login
 shell, so `TODO_FILE`/`TODO_DIR` from your dotfiles are honored; with
 neither set it starts in `$HOME`.
 
