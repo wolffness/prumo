@@ -147,19 +147,22 @@ fn advisor_shell() -> Section {
                 tr("run a shell command", "rodar comando de shell"),
             ),
             (
-                "advisor on/off +p",
+                "! advisor on/off +p",
+                tr("enable/disable per project", "liga/desliga por projeto"),
+            ),
+            (
+                "! advisor link",
                 tr(
-                    "toggle advisor per project",
-                    "liga/desliga advisor no projeto",
+                    "link a GitHub repo to a project",
+                    "vincular repo do GitHub a um projeto",
                 ),
             ),
             (
-                "advisor link",
-                tr("link a GitHub repo", "vincular repo do GitHub"),
-            ),
-            (
-                "advisor prioritize",
-                tr("AI prioritize on projects", "priorizar com IA nos projetos"),
+                "! advisor prioritize +p",
+                tr(
+                    "AI suggestion for a project",
+                    "sugestão de IA para um projeto",
+                ),
             ),
         ],
     )
@@ -378,8 +381,8 @@ mod tests {
             keys.iter().any(|k| k.contains('!')),
             "falta o comando shell"
         );
-        assert!(keys.contains(&"advisor on/off +p"));
-        assert!(keys.contains(&"advisor link"));
-        assert!(keys.contains(&"advisor prioritize"));
+        assert!(keys.iter().any(|k| k.contains("advisor on/off")));
+        assert!(keys.iter().any(|k| k.contains("advisor link")));
+        assert!(keys.iter().any(|k| k.contains("advisor prioritize")));
     }
 }

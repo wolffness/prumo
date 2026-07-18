@@ -45,4 +45,4 @@ expression: buffer_to_styled(&buf)
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
 {fg=#33ff33 bg=#041204}                          {/}{fg=#33ff33 bg=#020a02}                                        {/}{fg=#33ff33 bg=#041204}                                  {/}
-{fg=#020a02 bg=#33ff33 mod=bold} INSERT {/}{bg=#041204}  {/}{fg=#33ff33 bg=#041204}Enter save · Esc normal{/}{bg=#041204}                     {/}{fg=#1d8f1d bg=#041204}15 open · 2026-05-06 · tuxedo 2026.7.1-prumo2 {/}
+{fg=#020a02 bg=#33ff33 mod=bold} INSERT {/}{bg=#041204}  {/}{fg=#33ff33 bg=#041204}Enter save · Esc normal{/}{bg=#041204}                     {/}{fg=#1d8f1d bg=#041204}15 open · 2026-05-06 · tuxedo 2026.7.1-prumo3 {/}
