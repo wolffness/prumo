@@ -437,7 +437,29 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Share => handle_share(app, key),
         Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
+        Mode::Issues => handle_issues(app, key),
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
+    }
+}
+
+/// Visão de issues do GitHub: navegar, atualizar, abrir no navegador, importar.
+fn handle_issues(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.issues_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.issues_step(false),
+        KeyCode::Char('r') => {
+            if let Some(project) = app.filter().project.clone()
+                && let Some(repo) = app.linked_repo(&project).map(str::to_string)
+            {
+                app.refresh_issues(&project, &repo);
+            }
+        }
+        KeyCode::Enter => app.open_selected_issue(),
+        KeyCode::Char('+') => app.import_selected_issue(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('I') | KeyCode::Char('q') => {
+            app.exit_issues_view();
+        }
+        _ => {}
     }
 }
 
@@ -1263,6 +1285,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('n') => Action::BeginAdd,
         KeyCode::Char('r') => Action::Reschedule,
         KeyCode::Char('a') => Action::ToggleArchiveView,
+        KeyCode::Char('I') => Action::ToggleIssuesView,
         KeyCode::Char('l') => Action::GoList,
         KeyCode::Char('e') => Action::BeginEdit,
         KeyCode::Char('i') => Action::BeginEditInsert,
@@ -1478,6 +1501,7 @@ fn apply_action(app: &mut App, action: Action) {
             };
             app.set_view(next);
         }
+        Action::ToggleIssuesView => app.enter_issues_view(),
         Action::ArchiveCompleted => {
             if app.view() == View::Archive {
                 app.flash("already in archive");

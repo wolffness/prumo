@@ -53,12 +53,17 @@ pub enum Mode {
     /// target and no `./todo.txt` exists. `c` creates `./todo.txt`, `s`
     /// opens the bundled sample, `q`/`Esc` quits without creating anything.
     Welcome,
+    /// Visão de issues do GitHub (`I`): `j`/`k` move, `r` atualiza, `Enter`
+    /// abre no navegador, `+` importa para o todo.txt, `Esc`/`l`/`I` volta.
+    Issues,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
     List,
     Archive,
+    /// Issues abertas do GitHub do repo vinculado ao projeto em foco.
+    Issues,
 }
 
 impl View {
@@ -68,6 +73,7 @@ impl View {
         match self {
             View::List => 0,
             View::Archive => 1,
+            View::Issues => 2,
         }
     }
 }

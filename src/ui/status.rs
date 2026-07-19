@@ -19,6 +19,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         .into(),
         Mode::Search if app.search_is_shell() => "SHELL".into(),
         Mode::Search => tr("SEARCH", "BUSCA").into(),
+        Mode::Issues => "ISSUES".into(),
         Mode::Visual => "VISUAL".into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),
@@ -97,6 +98,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Welcome => tr(
             "c create ./todo.txt · s open sample · q quit",
             "c criar ./todo.txt · s abrir exemplo · q sair",
+        ),
+        Mode::Issues => tr(
+            "j/k move · r refresh · Enter open · + import · Esc back",
+            "j/k mover · r atualizar · Enter abrir · + importar · Esc voltar",
         ),
         _ => tr(
             "j/k · n new · r reschedule · x done · / search · ? help · u undo · q quit",

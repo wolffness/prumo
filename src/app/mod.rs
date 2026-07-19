@@ -113,7 +113,7 @@ pub struct App {
     /// Per-view saved cursor, indexed by `View::idx()`. `set_view` snapshots
     /// the outgoing view's cursor here and restores the incoming view's, so
     /// each view remembers where the user last was.
-    pub(crate) view_cursor: [usize; 2],
+    pub(crate) view_cursor: [usize; 3],
     /// Crate-private: same reason as `view` — `visible_cache` would drift.
     /// Read via `filter()`; mutate via `set_search`/`set_project`/etc.
     pub(crate) filter: Filter,
@@ -148,6 +148,14 @@ pub struct App {
     /// Projetos com o advisor ligado, lido do config. Usado só para o
     /// indicador `✦` no painel PROJETOS; a alternância é via comando CLI.
     pub advisor_projects: Vec<String>,
+    /// Vínculos projeto→repo, lido do config. Usado para descobrir o repo das
+    /// issues do projeto em foco na visão Issues.
+    pub advisor_links: Vec<(String, String)>,
+    /// Cache da sessão das issues da visão Issues, e de qual repo vieram.
+    pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
+    pub(crate) issues_repo: Option<String>,
+    /// Cursor próprio da visão Issues (as issues não são tarefas).
+    pub(crate) issues_cursor: usize,
     /// The search string that was active when the `ff` picker opened, so
     /// cancelling (`Esc`) restores it instead of leaving the previewed
     /// filter applied. `None` outside `Mode::PickSavedFilter`.
@@ -161,7 +169,7 @@ pub struct App {
     /// Vertical scroll offset (rows from the top of the line list) for each
     /// view, keyed by `View::idx()`. Updated at render time via `Cell` so the
     /// renderer can keep the cursor row visible without taking `&mut self`.
-    pub(crate) view_scroll: [Cell<u16>; 2],
+    pub(crate) view_scroll: [Cell<u16>; 3],
     /// Handle to the in-TUI capture server. `None` until the first time
     /// the user presses `s` (or invokes "show capture QR" from the
     /// palette). Once bound, the entry stays for the rest of the
@@ -235,13 +243,14 @@ impl App {
             })
             .collect();
         let advisor_projects = cfg.advisor_projects.clone();
+        let advisor_links = cfg.advisor_links.clone();
         let mut app = Self {
             store,
             view: View::List,
             mode: Mode::Normal,
             prefs: Prefs::from_config(cfg),
             cursor: 0,
-            view_cursor: [0; 2],
+            view_cursor: [0; 3],
             filter: Filter::default(),
             draft: DraftState::default(),
             selection: Selection::default(),
@@ -256,10 +265,14 @@ impl App {
             update_check: None,
             saved_filters,
             advisor_projects,
+            advisor_links,
+            issues: Vec::new(),
+            issues_repo: None,
+            issues_cursor: 0,
             saved_pick_restore: None,
             saved_pick_idx: 0,
             command_palette: CommandPaletteState::default(),
-            view_scroll: [Cell::new(0), Cell::new(0)],
+            view_scroll: [Cell::new(0), Cell::new(0), Cell::new(0)],
             share: None,
             notes_dir: note_dir,
             pending_editor_path: None,
@@ -840,6 +853,7 @@ impl App {
             })
             .collect();
         self.advisor_projects = new_cfg.advisor_projects.clone();
+        self.advisor_links = new_cfg.advisor_links.clone();
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
     }
@@ -847,6 +861,129 @@ impl App {
     /// `true` se o projeto tem o advisor ligado (para o indicador `✦`).
     pub fn advisor_project_enabled(&self, name: &str) -> bool {
         self.advisor_projects.iter().any(|p| p == name)
+    }
+
+    /// O repo GitHub vinculado a um projeto, se houver.
+    pub fn linked_repo(&self, project: &str) -> Option<&str> {
+        self.advisor_links
+            .iter()
+            .find(|(p, _)| p == project)
+            .map(|(_, r)| r.as_str())
+    }
+
+    /// Issues atualmente em cache (visão Issues).
+    pub fn issues(&self) -> &[crate::advisor::github::IssueRow] {
+        &self.issues
+    }
+
+    pub fn issues_cursor(&self) -> usize {
+        self.issues_cursor
+    }
+
+    /// Move o cursor da visão Issues (`down=true` desce).
+    pub fn issues_step(&mut self, down: bool) {
+        if self.issues.is_empty() {
+            self.issues_cursor = 0;
+            return;
+        }
+        let last = self.issues.len() - 1;
+        self.issues_cursor = if down {
+            (self.issues_cursor + 1).min(last)
+        } else {
+            self.issues_cursor.saturating_sub(1)
+        };
+    }
+
+    /// Entra na visão Issues do projeto em foco, buscando do GitHub se o cache
+    /// for de outro repo. Sem projeto em foco ou sem vínculo → flash de aviso e
+    /// não troca de visão.
+    pub fn enter_issues_view(&mut self) {
+        let Some(project) = self.filter.project.clone() else {
+            self.flash(crate::brand::tr(
+                "focus a linked +project first (fp)",
+                "foque um +projeto vinculado antes (fp)",
+            ));
+            return;
+        };
+        let Some(repo) = self.linked_repo(&project).map(str::to_string) else {
+            self.flash(format!(
+                "{}: {} — advisor link",
+                project,
+                crate::brand::tr("no linked repo", "sem repo vinculado")
+            ));
+            return;
+        };
+        self.set_view(View::Issues);
+        self.mode = Mode::Issues;
+        self.issues_cursor = 0;
+        if self.issues_repo.as_deref() != Some(repo.as_str()) {
+            self.refresh_issues(&project, &repo);
+        }
+    }
+
+    /// Sai da visão Issues de volta para a Lista (Normal).
+    pub fn exit_issues_view(&mut self) {
+        self.set_view(View::List);
+        self.mode = Mode::Normal;
+    }
+
+    /// (Re)busca as issues do repo vinculado ao projeto em foco.
+    pub fn refresh_issues(&mut self, project: &str, repo: &str) {
+        match crate::advisor::github::fetch_issues(repo) {
+            Ok(rows) => {
+                let n = rows.len();
+                self.issues = rows;
+                self.issues_repo = Some(repo.to_string());
+                self.issues_cursor = 0;
+                self.flash(format!(
+                    "{n} {} · {project}",
+                    crate::brand::tr("issues", "issues")
+                ));
+            }
+            Err(e) => self.flash(format!(
+                "{}: {e}",
+                crate::brand::tr("issues fetch failed", "falha ao buscar issues")
+            )),
+        }
+    }
+
+    /// Abre a issue selecionada no navegador do sistema.
+    pub fn open_selected_issue(&mut self) {
+        let Some(row) = self.issues.get(self.issues_cursor) else {
+            return;
+        };
+        if row.url.is_empty() {
+            self.flash(crate::brand::tr("no URL for issue", "issue sem URL"));
+            return;
+        }
+        if let Err(e) = crate::attach::open_with_system(std::path::Path::new(&row.url)) {
+            self.flash(format!(
+                "{}: {e}",
+                crate::brand::tr("open failed", "falha ao abrir")
+            ));
+        }
+    }
+
+    /// Importa a issue selecionada para o todo.txt como tarefa local, marcada
+    /// com o token `gh:owner/repo#N` para rastrear a origem.
+    pub fn import_selected_issue(&mut self) {
+        let repo = match self.issues_repo.clone() {
+            Some(r) => r,
+            None => return,
+        };
+        let project = self.filter.project.clone();
+        let Some(row) = self.issues.get(self.issues_cursor).cloned() else {
+            return;
+        };
+        let line = issue_import_line(&row, project.as_deref(), &repo);
+        match self.store.add_line(&line) {
+            crate::core::AddOutcome::Added { .. } => self.flash(format!(
+                "{} #{}",
+                crate::brand::tr("imported issue", "issue importada"),
+                row.number
+            )),
+            _ => self.flash(crate::brand::tr("import failed", "falha ao importar")),
+        }
     }
 
     /// Reconcile against disk and drain the inbox. Returns `true` when it is
@@ -860,5 +997,19 @@ impl App {
         let report = self.store.drain_inbox();
         self.apply_drain(report);
         matches!(reconcile, Reconcile::Unchanged)
+    }
+}
+
+/// Monta a linha todo.txt de import de uma issue: `<título> +<projeto>
+/// gh:<owner/repo>#<nº>`. O `+projeto` é omitido quando não há projeto em foco.
+/// Isolado para teste puro.
+pub(crate) fn issue_import_line(
+    row: &crate::advisor::github::IssueRow,
+    project: Option<&str>,
+    repo: &str,
+) -> String {
+    match project {
+        Some(p) => format!("{} +{p} gh:{repo}#{}", row.title, row.number),
+        None => format!("{} gh:{repo}#{}", row.title, row.number),
     }
 }

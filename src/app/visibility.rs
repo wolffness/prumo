@@ -33,6 +33,9 @@ impl App {
         match self.view {
             View::List => self.rebuild_list_cache(),
             View::Archive => self.rebuild_archive_cache(),
+            // A visão Issues tem sua própria lista (não são tarefas); nada a
+            // recomputar no cache de tarefas.
+            View::Issues => {}
         }
     }
 

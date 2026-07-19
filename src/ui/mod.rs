@@ -14,6 +14,7 @@ pub mod filters;
 pub mod header;
 pub mod help;
 pub mod hyperlinks;
+pub mod issues;
 pub mod list;
 pub mod logo;
 pub mod note_panel;
@@ -96,6 +97,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     match app.view() {
         View::List => list::render(frame, center_area, app),
         View::Archive => archive::render(frame, center_area, app),
+        View::Issues => issues::render(frame, center_area, app),
     }
     if let Some(ra) = right_area {
         detail::render(frame, ra, app);

@@ -52,6 +52,58 @@ pub fn synthetic_lines(stdout: &str, project: &str, repo: &str) -> Vec<String> {
         .collect()
 }
 
+/// Uma issue do GitHub para a visão dedicada do TUI. `tier`/`why` são
+/// preenchidos pelo ranking por objetivo (Fatia B); ficam `None` até lá.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IssueRow {
+    pub number: u64,
+    pub title: String,
+    pub url: String,
+    pub tier: Option<u8>,
+    pub why: Option<String>,
+}
+
+/// Parseia `número\ttítulo\turl` (uma issue por linha) da saída do
+/// `gh issue list ... --template`. Linhas malformadas são ignoradas.
+pub fn parse_issue_rows(stdout: &str) -> Vec<IssueRow> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, '\t');
+            let number = parts.next()?.trim().parse::<u64>().ok()?;
+            let title = parts.next()?.trim();
+            let url = parts.next().unwrap_or("").trim();
+            if title.is_empty() {
+                return None;
+            }
+            Some(IssueRow {
+                number,
+                title: title.to_string(),
+                url: url.to_string(),
+                tier: None,
+                why: None,
+            })
+        })
+        .collect()
+}
+
+/// Busca as issues abertas de um repo como [`IssueRow`]s (nº, título, url).
+pub fn fetch_issues(repo: &str) -> Result<Vec<IssueRow>> {
+    let out = gh(&[
+        "issue",
+        "list",
+        "--repo",
+        repo,
+        "--state",
+        "open",
+        "--json",
+        "number,title,url",
+        "--template",
+        "{{range .}}{{.number}}{{\"\\t\"}}{{.title}}{{\"\\t\"}}{{.url}}{{\"\\n\"}}{{end}}",
+    ])?;
+    Ok(parse_issue_rows(&out))
+}
+
 /// Executa um subcomando do `gh` já autenticado, devolvendo o stdout. Isola o
 /// shell-out (como o `curl` do incremento 1) para o resto do módulo ficar puro.
 fn gh(args: &[&str]) -> Result<String> {
@@ -131,6 +183,20 @@ mod tests {
             synthetic_line("prumo", "wolffness/prumo", 12, "Arrumar o parser NL"),
             "(?) Arrumar o parser NL +prumo gh:wolffness/prumo#12"
         );
+    }
+
+    #[test]
+    fn parses_issue_rows_with_url_skips_malformed() {
+        let out = "12\tArrumar parser\thttps://github.com/o/r/issues/12\nsem-tab\n\
+                   7\t  Publicar  \thttps://github.com/o/r/issues/7\n";
+        let rows = parse_issue_rows(out);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].number, 12);
+        assert_eq!(rows[0].title, "Arrumar parser");
+        assert_eq!(rows[0].url, "https://github.com/o/r/issues/12");
+        assert_eq!(rows[1].number, 7);
+        assert_eq!(rows[1].title, "Publicar");
+        assert!(rows[0].tier.is_none() && rows[0].why.is_none());
     }
 
     #[test]

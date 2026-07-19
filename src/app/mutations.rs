@@ -434,6 +434,27 @@ mod tests {
     use crate::config::Config;
 
     #[test]
+    fn issue_import_line_builds_todo_with_gh_token() {
+        use crate::advisor::github::IssueRow;
+        let row = IssueRow {
+            number: 42,
+            title: "Corrigir o dashboard".into(),
+            url: "https://github.com/wolffness/ShelfFlow/issues/42".into(),
+            tier: None,
+            why: None,
+        };
+        assert_eq!(
+            crate::app::issue_import_line(&row, Some("ShelfFlow"), "wolffness/ShelfFlow"),
+            "Corrigir o dashboard +ShelfFlow gh:wolffness/ShelfFlow#42"
+        );
+        // Sem projeto em foco: omite o +tag.
+        assert_eq!(
+            crate::app::issue_import_line(&row, None, "wolffness/ShelfFlow"),
+            "Corrigir o dashboard gh:wolffness/ShelfFlow#42"
+        );
+    }
+
+    #[test]
     fn advisor_project_enabled_reads_from_config() {
         let cfg = Config {
             advisor_projects: vec!["ShelfFlow".into()],
