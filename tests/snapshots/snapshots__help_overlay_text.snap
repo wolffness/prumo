@@ -33,7 +33,7 @@ expression: buffer_to_text(&buf)
      │                                                                                        │     
      │                                              ADVISOR & SHELL                           │     
      │                                                I                 GitHub issues view    │     
-     │                                                  in view: p      AI rank by goal       │     
+     │                                                  in view: g      AI rank by goal       │     
      │                                                ! advisor on/off +penable/disable per pr│     
      │                                                ! advisor link    link a GitHub repo    │     
      │                                                ! advisor goal +p set the ranking goal  │     
@@ -45,4 +45,4 @@ expression: buffer_to_text(&buf)
      │    +project          project tag(s)            rec:+Nu           strict: anchor on due:│     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
- HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo3
+ HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo4

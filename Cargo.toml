@@ -1,6 +1,6 @@
 [package]
 name = "tuxedo"
-version = "2026.7.1-prumo4"
+version = "2026.7.1-prumo5"
 edition = "2024"
 
 # The fork ships the same program under both names; user-facing text follows

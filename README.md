@@ -385,7 +385,7 @@ projeto em foco, ou o único vínculo existente). Dentro dela:
 
 - `j`/`k` navega · `r` re-busca do GitHub · `Enter` abre a issue no navegador ·
   `+` importa a issue para o todo.txt (`título +projeto gh:owner/repo#N`).
-- **`p`** pede ao advisor para **ranquear as issues rumo a um objetivo**: elas
+- **`g`** pede ao advisor para **ranquear as issues rumo a um objetivo**: elas
   são reordenadas por importância, com um nível em símbolo (`!!!`/`!!`/`!`) e
   uma linha curta de porquê.
 
