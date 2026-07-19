@@ -65,6 +65,9 @@ pub struct Config {
     /// projeto). Serializado uma linha por projeto como
     /// `advisor_project.<nome> = on`.
     pub advisor_projects: Vec<String>,
+    /// Objetivo salvo por projeto — norte para o ranking de issues por
+    /// importância. Serializado como `advisor_goal.<nome> = <texto>`.
+    pub advisor_goals: Vec<(String, String)>,
 }
 
 impl Config {
@@ -194,6 +197,21 @@ fn parse(s: &str) -> Config {
             // name collapses to one entry, last value wins, position of
             // the first occurrence kept — matching `upsert`'s semantics.
             _ if k
+                .strip_prefix("advisor_goal.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k
+                    .strip_prefix("advisor_goal.")
+                    .expect("checked above")
+                    .trim()
+                    .to_string();
+                let goal = v.trim().to_string();
+                match c.advisor_goals.iter_mut().find(|(n, _)| n == &name) {
+                    Some((_, g)) => *g = goal,
+                    None => c.advisor_goals.push((name, goal)),
+                }
+            }
+            _ if k
                 .strip_prefix("advisor_project.")
                 .is_some_and(|n| !n.trim().is_empty()) =>
             {
@@ -306,6 +324,9 @@ fn serialize(c: &Config) -> String {
     for project in &c.advisor_projects {
         let _ = writeln!(out, "advisor_project.{project} = on");
     }
+    for (project, goal) in &c.advisor_goals {
+        let _ = writeln!(out, "advisor_goal.{project} = {goal}");
+    }
     out
 }
 
@@ -359,6 +380,7 @@ mod tests {
                 ("casa".into(), "wolffness/casa-infra".into()),
             ],
             advisor_projects: vec!["prumo".into()],
+            advisor_goals: vec![("prumo".into(), "lançar o app v2".into())],
         };
 
         let s = serialize(&c);
@@ -382,6 +404,20 @@ mod tests {
         );
         // Serialize → parse é idempotente.
         assert_eq!(parse(&serialize(&c)).advisor_links, c.advisor_links);
+    }
+
+    #[test]
+    fn advisor_goal_round_trip_with_spaces_and_equals() {
+        let s = "advisor_goal.ShelfFlow = lançar dashboard v2 = foco: perf\n";
+        let c = parse(s);
+        assert_eq!(
+            c.advisor_goals,
+            vec![(
+                "ShelfFlow".to_string(),
+                "lançar dashboard v2 = foco: perf".to_string()
+            )]
+        );
+        assert_eq!(parse(&serialize(&c)).advisor_goals, c.advisor_goals);
     }
 
     #[test]
@@ -550,6 +586,7 @@ mod tests {
             advisor_model: None,
             advisor_links: vec![("errand".into(), "octocat/errand".into())],
             advisor_projects: vec!["errand".into()],
+            advisor_goals: vec![("errand".into(), "zerar a caixa de entrada".into())],
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

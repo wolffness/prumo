@@ -70,9 +70,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let selected = i == cursor;
         let prefix = if selected { "▸ " } else { "  " };
         let bg = if selected { theme.selected } else { theme.bg };
+        // Marcador de tier (Fatia B): `!!!`/`!!`/`!` por importância; vazio
+        // enquanto não ranqueado. Símbolo por contagem, não cor (daltonismo).
+        let tier = tier_symbol(row.tier);
         lines.push(
             Line::from(vec![
                 Span::styled(prefix.to_string(), Style::default().fg(theme.accent)),
+                Span::styled(format!("{:>3} ", tier), Style::default().fg(theme.pri_a)),
                 Span::styled(
                     format!("#{:<6}", row.number),
                     Style::default().fg(theme.dim),
@@ -88,9 +92,44 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             ])
             .style(Style::default().bg(bg)),
         );
+        // Linha de porquê (quando ranqueado), recuada e em cor dim.
+        if let Some(why) = row.why.as_deref().filter(|w| !w.is_empty()) {
+            lines.push(
+                Line::from(Span::styled(
+                    format!("        {why}"),
+                    Style::default().fg(theme.dim),
+                ))
+                .style(Style::default().bg(bg)),
+            );
+        }
     }
     frame.render_widget(
         Paragraph::new(lines).style(Style::default().bg(theme.bg)),
         body_area,
     );
+}
+
+/// Símbolo de importância de uma issue ranqueada: 3=`!!!`, 2=`!!`, 1=`!`, vazio
+/// quando não ranqueado. Por contagem (não cor) — acessível a daltônicos.
+pub fn tier_symbol(tier: Option<u8>) -> &'static str {
+    match tier {
+        Some(3) => "!!!",
+        Some(2) => "!!",
+        Some(1) => "!",
+        _ => "",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tier_symbol;
+
+    #[test]
+    fn tier_symbol_by_count_not_color() {
+        assert_eq!(tier_symbol(Some(3)), "!!!");
+        assert_eq!(tier_symbol(Some(2)), "!!");
+        assert_eq!(tier_symbol(Some(1)), "!");
+        assert_eq!(tier_symbol(None), "");
+        assert_eq!(tier_symbol(Some(9)), "");
+    }
 }

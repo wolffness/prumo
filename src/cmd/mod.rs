@@ -590,29 +590,73 @@ fn print_rows(tasks: &[Task], idxs: &[usize], width: usize) {
 /// — imprime a sugestão; nunca escreve no todo.txt. Subcomandos: `on`/`off`
 /// (liga/desliga um projeto), `link` (vincula repo GitHub), `prioritize`.
 fn cmd_advisor(store: &Store, pos: &[String]) -> i32 {
-    // Separa o subcomando do filtro `+projeto` (qualquer ordem).
+    // Parsing: o 1º token não-`+` é o subcomando; os demais não-`+` são texto
+    // livre (ex.: o objetivo); qualquer `+token` é o projeto.
     let mut sub = "prioritize";
+    let mut sub_seen = false;
     let mut project: Option<&str> = None;
+    let mut words: Vec<&str> = Vec::new();
     for p in pos {
         if let Some(pj) = p.strip_prefix('+') {
             project = Some(pj);
-        } else {
+        } else if !sub_seen {
             sub = p;
+            sub_seen = true;
+        } else {
+            words.push(p);
         }
     }
 
     match sub {
         "link" => cmd_advisor_link(),
         "on" | "off" => cmd_advisor_toggle(project, sub == "on"),
+        "goal" | "objetivo" => cmd_advisor_goal(project, &words.join(" ")),
         "prioritize" | "pri" | "priorizar" => cmd_advisor_prioritize(store, project),
         other => {
             eprintln!(
-                "{}: unknown advisor command: {other} (try `on`/`off`/`link`/`prioritize`)",
+                "{}: unknown advisor command: {other} (try `on`/`off`/`goal`/`link`/`prioritize`)",
                 crate::brand::app_name()
             );
             2
         }
     }
+}
+
+/// `advisor goal +projeto <texto>`: salva o objetivo do projeto no config
+/// (norte do ranking de issues por importância).
+fn cmd_advisor_goal(project: Option<&str>, goal: &str) -> i32 {
+    let name = match project {
+        Some(p) => p,
+        None => {
+            eprintln!(
+                "{}: informe o projeto, ex.: `advisor goal +ShelfFlow \"lançar o v2\"`",
+                crate::brand::app_name()
+            );
+            return 2;
+        }
+    };
+    let goal = goal.trim();
+    if goal.is_empty() {
+        eprintln!(
+            "{}: informe o objetivo, ex.: `advisor goal +{name} \"lançar o v2\"`",
+            crate::brand::app_name()
+        );
+        return 2;
+    }
+    let mut cfg = crate::config::Config::load();
+    match cfg.advisor_goals.iter_mut().find(|(p, _)| p == name) {
+        Some((_, g)) => *g = goal.to_string(),
+        None => cfg.advisor_goals.push((name.to_string(), goal.to_string())),
+    }
+    if let Err(e) = cfg.save() {
+        eprintln!(
+            "{}: não consegui salvar o config: {e}",
+            crate::brand::app_name()
+        );
+        return 1;
+    }
+    println!("objetivo salvo para +{name}: {goal}");
+    0
 }
 
 /// `advisor on|off +projeto`: liga/desliga o advisor para um projeto, gravando

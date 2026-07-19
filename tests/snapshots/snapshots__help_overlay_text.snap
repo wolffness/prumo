@@ -32,17 +32,17 @@ expression: buffer_to_text(&buf)
      │    q                 quit                      Enter             open attachments      │     
      │                                                                                        │     
      │                                              ADVISOR & SHELL                           │     
-     │                                                / then ! cmd      run a shell command   │     
+     │                                                I                 GitHub issues view    │     
+     │                                                  in view: p      AI rank by goal       │     
      │                                                ! advisor on/off +penable/disable per pr│     
-     │                                                ! advisor link    link a GitHub repo to │     
-     │                                                ! advisor prioritize +pAI suggestion for│     
+     │                                                ! advisor link    link a GitHub repo    │     
+     │                                                ! advisor goal +p set the ranking goal  │     
+     │                                                / then ! cmd      run a shell command   │     
      │────────────────────────────────────────────────────────────────────────────────────────│     
      │  FORMAT                                                                                │     
      │    (A)               priority A-Z              due:YYYY-MM-DD    due date              │     
      │    YYYY-MM-DD        creation / done date      rec:Nu            recur (u in d/w/m/y/b)│     
      │    +project          project tag(s)            rec:+Nu           strict: anchor on due:│     
-     │    @context          context tag(s)            x DATE BODY       completed task prefix │     
-     │                                                                                        │     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
  HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo3

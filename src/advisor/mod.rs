@@ -102,6 +102,62 @@ pub fn advise(cfg: &AdvisorConfig, kind: Task_, lines: &[String]) -> Result<Stri
     }
 }
 
+/// Ranqueia as issues rumo a um `goal`, devolvendo `(número, tier 1-3, porquê)`
+/// por issue reconhecida na resposta. Read-only; a IA só sugere. Cada item de
+/// `issues` é `(número, título)`.
+pub fn rank_issues(
+    cfg: &AdvisorConfig,
+    goal: &str,
+    issues: &[(u64, String)],
+) -> Result<Vec<(u64, u8, String)>> {
+    if issues.is_empty() {
+        return Ok(Vec::new());
+    }
+    let prompt = build_rank_prompt(goal, issues);
+    let text = match cfg.backend {
+        Backend::Ollama => call_ollama(&cfg.model, &prompt)?,
+        Backend::Claude => call_claude(&cfg.model, &prompt)?,
+    };
+    Ok(parse_ranking(&text))
+}
+
+fn build_rank_prompt(goal: &str, issues: &[(u64, String)]) -> String {
+    let list = issues
+        .iter()
+        .map(|(n, t)| format!("#{n} {t}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "Você prioriza issues de GitHub para uma pessoa com TDAH/TEA que trabalha \
+         sozinha. OBJETIVO: {goal}\n\nISSUES ABERTAS:\n{list}\n\n\
+         Para CADA issue, avalie o quanto ela avança o OBJETIVO e devolva UMA linha \
+         no formato EXATO:\n#<número> | <tier> | <porquê em até 12 palavras>\n\
+         onde <tier> é 3 (essencial ao objetivo), 2 (ajuda) ou 1 (pouco relacionado). \
+         Não escreva mais nada além dessas linhas. Responda em português."
+    )
+}
+
+/// Parseia linhas `#<n> | <tier> | <porquê>` da resposta do modelo. Tolera
+/// marcadores de lista e linhas fora do formato (ignoradas).
+pub fn parse_ranking(text: &str) -> Vec<(u64, u8, String)> {
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim().trim_start_matches(['-', '*', ' ']);
+            let rest = line.strip_prefix('#')?;
+            let mut parts = rest.splitn(3, '|');
+            let number = parts.next()?.trim().parse::<u64>().ok()?;
+            let tier = parts
+                .next()?
+                .trim()
+                .parse::<u8>()
+                .ok()
+                .filter(|t| (1..=3).contains(t))?;
+            let why = parts.next().unwrap_or("").trim().to_string();
+            Some((number, tier, why))
+        })
+        .collect()
+}
+
 fn build_prompt(kind: Task_, lines: &[String]) -> String {
     let list = lines
         .iter()
@@ -349,6 +405,21 @@ mod tests {
         let c = AdvisorConfig::resolve(Some("xyz"), Some("  "));
         assert_eq!(c.backend, Backend::Ollama);
         assert_eq!(c.model, "llama3.2");
+    }
+
+    #[test]
+    fn parse_ranking_reads_tiers_and_skips_noise() {
+        let text = "Aqui vai:\n#12 | 3 | destrava o dashboard\n- #7 | 2 | ajuda na perf\n\
+                    lixo aleatório\n#9 | 5 | fora do range\n#4 | 1 |\n";
+        let r = parse_ranking(text);
+        assert_eq!(
+            r,
+            vec![
+                (12, 3, "destrava o dashboard".to_string()),
+                (7, 2, "ajuda na perf".to_string()),
+                (4, 1, String::new()),
+            ]
+        );
     }
 
     #[test]

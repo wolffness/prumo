@@ -378,6 +378,25 @@ priorização marcadas com `(?)` e um token `gh:owner/repo#N`, deixando claro qu
 ainda **não estão** no todo.txt. Se o `gh` não estiver disponível, o
 `prioritize` avisa e segue só com as tarefas locais.
 
+### Visão de issues no app + ranking por objetivo
+
+Aperte **`I`** no TUI para abrir a visão de issues do repo vinculado (usa o
+projeto em foco, ou o único vínculo existente). Dentro dela:
+
+- `j`/`k` navega · `r` re-busca do GitHub · `Enter` abre a issue no navegador ·
+  `+` importa a issue para o todo.txt (`título +projeto gh:owner/repo#N`).
+- **`p`** pede ao advisor para **ranquear as issues rumo a um objetivo**: elas
+  são reordenadas por importância, com um nível em símbolo (`!!!`/`!!`/`!`) e
+  uma linha curta de porquê.
+
+Defina o objetivo por projeto uma vez:
+
+```sh
+prumo advisor goal +ShelfFlow "lançar o dashboard v2 e estabilizar o motor"
+```
+
+Read-only no GitHub: nada é escrito lá; importar mexe só no todo.txt local.
+
 ## Atalhos de teclado
 
 Atalhos personalizados do modo normal podem ser adicionados em

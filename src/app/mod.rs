@@ -151,6 +151,8 @@ pub struct App {
     /// Vínculos projeto→repo, lido do config. Usado para descobrir o repo das
     /// issues do projeto em foco na visão Issues.
     pub advisor_links: Vec<(String, String)>,
+    /// Objetivo salvo por projeto, lido do config (norte do ranking `p`).
+    pub advisor_goals: Vec<(String, String)>,
     /// Cache da sessão das issues da visão Issues, e de qual repo/projeto vieram.
     pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
     pub(crate) issues_repo: Option<String>,
@@ -245,6 +247,7 @@ impl App {
             .collect();
         let advisor_projects = cfg.advisor_projects.clone();
         let advisor_links = cfg.advisor_links.clone();
+        let advisor_goals = cfg.advisor_goals.clone();
         let mut app = Self {
             store,
             view: View::List,
@@ -267,6 +270,7 @@ impl App {
             saved_filters,
             advisor_projects,
             advisor_links,
+            advisor_goals,
             issues: Vec::new(),
             issues_repo: None,
             issues_project: None,
@@ -856,6 +860,7 @@ impl App {
             .collect();
         self.advisor_projects = new_cfg.advisor_projects.clone();
         self.advisor_links = new_cfg.advisor_links.clone();
+        self.advisor_goals = new_cfg.advisor_goals.clone();
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
     }
@@ -948,6 +953,54 @@ impl App {
         }
     }
 
+    /// Objetivo salvo de um projeto, se houver.
+    pub fn goal_for(&self, project: &str) -> Option<&str> {
+        self.advisor_goals
+            .iter()
+            .find(|(p, _)| p == project)
+            .map(|(_, g)| g.as_str())
+    }
+
+    /// Ranqueia as issues em cache rumo ao objetivo (o `override_goal`, senão o
+    /// salvo do projeto), preenchendo tier/porquê e reordenando por tier.
+    /// Chamada de IA **síncrona** — bloqueia brevemente o TUI.
+    pub fn rank_current_issues(&mut self, override_goal: Option<String>) {
+        if self.issues.is_empty() {
+            return;
+        }
+        let project = self.issues_project.clone().unwrap_or_default();
+        let goal = override_goal.or_else(|| self.goal_for(&project).map(str::to_string));
+        let Some(goal) = goal.filter(|g| !g.trim().is_empty()) else {
+            self.flash(crate::brand::tr(
+                "no goal set — run `advisor goal +proj \"...\"` first",
+                "sem objetivo — rode `advisor goal +proj \"...\"` antes",
+            ));
+            return;
+        };
+        let cfg = Config::load();
+        let advisor_cfg = crate::advisor::AdvisorConfig::resolve(
+            cfg.advisor_backend.as_deref(),
+            cfg.advisor_model.as_deref(),
+        );
+        let list: Vec<(u64, String)> = self
+            .issues
+            .iter()
+            .map(|r| (r.number, r.title.clone()))
+            .collect();
+        match crate::advisor::rank_issues(&advisor_cfg, &goal, &list) {
+            Ok(ranking) => {
+                let n = ranking.len();
+                apply_ranking(&mut self.issues, &ranking);
+                self.issues_cursor = 0;
+                self.flash(format!("{} {n}", crate::brand::tr("ranked", "ranqueadas")));
+            }
+            Err(e) => self.flash(format!(
+                "{}: {e}",
+                crate::brand::tr("rank failed", "falha no ranking")
+            )),
+        }
+    }
+
     /// Sai da visão Issues de volta para a Lista (Normal).
     pub fn exit_issues_view(&mut self) {
         self.set_view(View::List);
@@ -1036,4 +1089,19 @@ pub(crate) fn issue_import_line(
         Some(p) => format!("{} +{p} gh:{repo}#{}", row.title, row.number),
         None => format!("{} gh:{repo}#{}", row.title, row.number),
     }
+}
+
+/// Aplica `(número, tier, porquê)` às issues por número e reordena por tier
+/// (desc; sem tier por último), de forma estável. Isolado para teste puro.
+pub(crate) fn apply_ranking(
+    issues: &mut [crate::advisor::github::IssueRow],
+    ranking: &[(u64, u8, String)],
+) {
+    for (number, tier, why) in ranking {
+        if let Some(row) = issues.iter_mut().find(|r| r.number == *number) {
+            row.tier = Some(*tier);
+            row.why = Some(why.clone());
+        }
+    }
+    issues.sort_by_key(|r| std::cmp::Reverse(r.tier.unwrap_or(0)));
 }

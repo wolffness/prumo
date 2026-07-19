@@ -434,6 +434,32 @@ mod tests {
     use crate::config::Config;
 
     #[test]
+    fn apply_ranking_sets_tiers_and_reorders() {
+        use crate::advisor::github::IssueRow;
+        let mk = |n: u64| IssueRow {
+            number: n,
+            title: format!("issue {n}"),
+            url: String::new(),
+            tier: None,
+            why: None,
+        };
+        let mut issues = vec![mk(1), mk(2), mk(3)];
+        // #2 vira tier 3, #1 tier 1, #3 não ranqueada.
+        crate::app::apply_ranking(
+            &mut issues,
+            &[(2, 3, "essencial".into()), (1, 1, "pouco".into())],
+        );
+        // Ordena por tier desc: #2 (3), #1 (1), #3 (none/0).
+        assert_eq!(
+            issues.iter().map(|r| r.number).collect::<Vec<_>>(),
+            vec![2, 1, 3]
+        );
+        assert_eq!(issues[0].tier, Some(3));
+        assert_eq!(issues[0].why.as_deref(), Some("essencial"));
+        assert_eq!(issues[2].tier, None);
+    }
+
+    #[test]
     fn issue_import_line_builds_todo_with_gh_token() {
         use crate::advisor::github::IssueRow;
         let row = IssueRow {

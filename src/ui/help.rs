@@ -142,9 +142,10 @@ fn advisor_shell() -> Section {
     (
         tr("ADVISOR & SHELL", "ADVISOR E SHELL"),
         vec![
+            ("I", tr("GitHub issues view", "visão de issues do GitHub")),
             (
-                "/ then ! cmd",
-                tr("run a shell command", "rodar comando de shell"),
+                "  in view: p",
+                tr("AI rank by goal", "ranquear por objetivo (IA)"),
             ),
             (
                 "! advisor on/off +p",
@@ -152,17 +153,15 @@ fn advisor_shell() -> Section {
             ),
             (
                 "! advisor link",
-                tr(
-                    "link a GitHub repo to a project",
-                    "vincular repo do GitHub a um projeto",
-                ),
+                tr("link a GitHub repo", "vincular repo do GitHub"),
             ),
             (
-                "! advisor prioritize +p",
-                tr(
-                    "AI suggestion for a project",
-                    "sugestão de IA para um projeto",
-                ),
+                "! advisor goal +p",
+                tr("set the ranking goal", "definir o objetivo do ranking"),
+            ),
+            (
+                "/ then ! cmd",
+                tr("run a shell command", "rodar comando de shell"),
             ),
         ],
     )
@@ -383,6 +382,7 @@ mod tests {
         );
         assert!(keys.iter().any(|k| k.contains("advisor on/off")));
         assert!(keys.iter().any(|k| k.contains("advisor link")));
-        assert!(keys.iter().any(|k| k.contains("advisor prioritize")));
+        assert!(keys.iter().any(|k| k.contains("advisor goal")));
+        assert!(keys.contains(&"I"), "falta a visão de issues");
     }
 }

@@ -100,8 +100,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             "c criar ./todo.txt · s abrir exemplo · q sair",
         ),
         Mode::Issues => tr(
-            "j/k move · r refresh · Enter open · + import · Esc back",
-            "j/k mover · r atualizar · Enter abrir · + importar · Esc voltar",
+            "j/k move · p rank · r refresh · Enter open · + import · Esc back",
+            "j/k mover · p ranquear · r atualizar · Enter abrir · + importar · Esc voltar",
         ),
         _ => tr(
             "j/k · n new · r reschedule · x done · / search · ? help · u undo · q quit",
