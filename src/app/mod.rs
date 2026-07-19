@@ -151,9 +151,10 @@ pub struct App {
     /// Vínculos projeto→repo, lido do config. Usado para descobrir o repo das
     /// issues do projeto em foco na visão Issues.
     pub advisor_links: Vec<(String, String)>,
-    /// Cache da sessão das issues da visão Issues, e de qual repo vieram.
+    /// Cache da sessão das issues da visão Issues, e de qual repo/projeto vieram.
     pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
     pub(crate) issues_repo: Option<String>,
+    pub(crate) issues_project: Option<String>,
     /// Cursor próprio da visão Issues (as issues não são tarefas).
     pub(crate) issues_cursor: usize,
     /// The search string that was active when the `ff` picker opened, so
@@ -268,6 +269,7 @@ impl App {
             advisor_links,
             issues: Vec::new(),
             issues_repo: None,
+            issues_project: None,
             issues_cursor: 0,
             saved_pick_restore: None,
             saved_pick_idx: 0,
@@ -894,30 +896,55 @@ impl App {
         };
     }
 
-    /// Entra na visão Issues do projeto em foco, buscando do GitHub se o cache
-    /// for de outro repo. Sem projeto em foco ou sem vínculo → flash de aviso e
-    /// não troca de visão.
+    /// Entra na visão Issues. O repo-alvo é o do `+projeto` em foco (se
+    /// vinculado); se nenhum estiver em foco mas houver **exatamente um** projeto
+    /// vinculado, usa esse (conveniência). Sem alvo → flash orientando.
     pub fn enter_issues_view(&mut self) {
-        let Some(project) = self.filter.project.clone() else {
-            self.flash(crate::brand::tr(
-                "focus a linked +project first (fp)",
-                "foque um +projeto vinculado antes (fp)",
-            ));
-            return;
-        };
-        let Some(repo) = self.linked_repo(&project).map(str::to_string) else {
-            self.flash(format!(
-                "{}: {} — advisor link",
-                project,
-                crate::brand::tr("no linked repo", "sem repo vinculado")
-            ));
+        // Projeto em foco, se vinculado.
+        let focused = self
+            .filter
+            .project
+            .clone()
+            .and_then(|p| self.linked_repo(&p).map(|r| (p.clone(), r.to_string())));
+        // Fallback: único vínculo existente.
+        let target = focused.or_else(|| {
+            if self.advisor_links.len() == 1 {
+                let (p, r) = &self.advisor_links[0];
+                Some((p.clone(), r.clone()))
+            } else {
+                None
+            }
+        });
+        let Some((project, repo)) = target else {
+            let msg = if self.advisor_links.is_empty() {
+                crate::brand::tr(
+                    "no linked repo — run `advisor link`",
+                    "nenhum repo vinculado — rode `advisor link`",
+                )
+            } else {
+                crate::brand::tr(
+                    "focus a linked +project (fp), then I",
+                    "foque um +projeto vinculado (fp), depois I",
+                )
+            };
+            self.flash(msg);
             return;
         };
         self.set_view(View::Issues);
         self.mode = Mode::Issues;
         self.issues_cursor = 0;
+        // Guarda de qual projeto é a visão, para o import marcar o +tag certo
+        // mesmo quando o projeto não estava em foco.
+        self.issues_project = Some(project);
         if self.issues_repo.as_deref() != Some(repo.as_str()) {
-            self.refresh_issues(&project, &repo);
+            self.refresh_issues(&repo);
+        }
+    }
+
+    /// Re-busca as issues do repo atual da visão (tecla `r`).
+    pub fn refresh_current_issues(&mut self) {
+        if let Some(repo) = self.issues_repo.clone() {
+            self.refresh_issues(&repo);
         }
     }
 
@@ -927,18 +954,15 @@ impl App {
         self.mode = Mode::Normal;
     }
 
-    /// (Re)busca as issues do repo vinculado ao projeto em foco.
-    pub fn refresh_issues(&mut self, project: &str, repo: &str) {
+    /// (Re)busca as issues abertas de um repo para a visão Issues.
+    pub fn refresh_issues(&mut self, repo: &str) {
         match crate::advisor::github::fetch_issues(repo) {
             Ok(rows) => {
                 let n = rows.len();
                 self.issues = rows;
                 self.issues_repo = Some(repo.to_string());
                 self.issues_cursor = 0;
-                self.flash(format!(
-                    "{n} {} · {project}",
-                    crate::brand::tr("issues", "issues")
-                ));
+                self.flash(format!("{n} {}", crate::brand::tr("issues", "issues")));
             }
             Err(e) => self.flash(format!(
                 "{}: {e}",
@@ -971,7 +995,7 @@ impl App {
             Some(r) => r,
             None => return,
         };
-        let project = self.filter.project.clone();
+        let project = self.issues_project.clone();
         let Some(row) = self.issues.get(self.issues_cursor).cloned() else {
             return;
         };

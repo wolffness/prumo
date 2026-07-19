@@ -447,13 +447,7 @@ fn handle_issues(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Char('j') | KeyCode::Down => app.issues_step(true),
         KeyCode::Char('k') | KeyCode::Up => app.issues_step(false),
-        KeyCode::Char('r') => {
-            if let Some(project) = app.filter().project.clone()
-                && let Some(repo) = app.linked_repo(&project).map(str::to_string)
-            {
-                app.refresh_issues(&project, &repo);
-            }
-        }
+        KeyCode::Char('r') => app.refresh_current_issues(),
         KeyCode::Enter => app.open_selected_issue(),
         KeyCode::Char('+') => app.import_selected_issue(),
         KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('I') | KeyCode::Char('q') => {
