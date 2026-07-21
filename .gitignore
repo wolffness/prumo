@@ -5,3 +5,6 @@ dist/
 
 # Snapshots pendentes do insta (regeneráveis; nunca versionar)
 *.snap.new
+
+# Nix build output
+/result
