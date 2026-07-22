@@ -20,8 +20,10 @@ pub fn agent_name(number: u64) -> String {
 
 /// Extrai o bloco ```text da seção `## Entry prompt` do body de uma issue.
 /// O contrato de tarefa (brain/templates/issue-tarefa.md) garante a seção.
+/// Ancorado no início de linha: o texto da issue pode MENCIONAR
+/// "## Entry prompt" em prosa (ex.: critérios de aceite) sem confundir.
 pub fn extract_entry_prompt(body: &str) -> Option<String> {
-    let section = body.split("## Entry prompt").nth(1)?;
+    let section = body.split("\n## Entry prompt").nth(1)?;
     let fence = section.split("```text").nth(1)?;
     let prompt = fence.split("```").next()?.trim();
     (!prompt.is_empty()).then(|| prompt.to_string())
@@ -153,7 +155,14 @@ mod tests {
     #[test]
     fn entry_prompt_missing_or_empty_is_none() {
         assert_eq!(extract_entry_prompt("## Objetivo\nsem prompt"), None);
-        assert_eq!(extract_entry_prompt("## Entry prompt\n```text\n\n```"), None);
+        assert_eq!(extract_entry_prompt("x\n## Entry prompt\n```text\n\n```"), None);
+    }
+
+    #[test]
+    fn prose_mention_of_the_section_does_not_confuse() {
+        // Menção em prosa (com fence antes E depois) + seção real depois.
+        let body = "## Critérios\n- Extrai o bloco ```text da seção \"## Entry prompt\" do body\n\n## Entry prompt\n```text\nprompt real\n```\n";
+        assert_eq!(extract_entry_prompt(body).as_deref(), Some("prompt real"));
     }
 
     #[test]
