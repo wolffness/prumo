@@ -438,7 +438,20 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Issues => handle_issues(app, key),
+        Mode::Kanban => handle_kanban(app, key),
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
+    }
+}
+
+/// Visão Kanban do board (Project v2), somente leitura: `r` atualiza,
+/// `Esc`/`l`/`K`/`q` volta para a lista.
+fn handle_kanban(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('r') => app.refresh_kanban(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('K') | KeyCode::Char('q') => {
+            app.exit_kanban_view();
+        }
+        _ => {}
     }
 }
 
@@ -1281,6 +1294,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('r') => Action::Reschedule,
         KeyCode::Char('a') => Action::ToggleArchiveView,
         KeyCode::Char('I') => Action::ToggleIssuesView,
+        KeyCode::Char('K') => Action::ToggleKanbanView,
         KeyCode::Char('l') => Action::GoList,
         KeyCode::Char('e') => Action::BeginEdit,
         KeyCode::Char('i') => Action::BeginEditInsert,
@@ -1497,6 +1511,7 @@ fn apply_action(app: &mut App, action: Action) {
             app.set_view(next);
         }
         Action::ToggleIssuesView => app.enter_issues_view(),
+        Action::ToggleKanbanView => app.enter_kanban_view(),
         Action::ArchiveCompleted => {
             if app.view() == View::Archive {
                 app.flash("already in archive");

@@ -56,6 +56,9 @@ pub enum Mode {
     /// Visão de issues do GitHub (`I`): `j`/`k` move, `r` atualiza, `Enter`
     /// abre no navegador, `+` importa para o todo.txt, `Esc`/`l`/`I` volta.
     Issues,
+    /// Visão Kanban do board (Project v2, `K`): somente leitura nesta fatia;
+    /// `r` atualiza, `Esc`/`l`/`K` volta.
+    Kanban,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +67,8 @@ pub enum View {
     Archive,
     /// Issues abertas do GitHub do repo vinculado ao projeto em foco.
     Issues,
+    /// Kanban do board Project v2 (colunas por Status).
+    Kanban,
 }
 
 impl View {
@@ -74,6 +79,7 @@ impl View {
             View::List => 0,
             View::Archive => 1,
             View::Issues => 2,
+            View::Kanban => 3,
         }
     }
 }

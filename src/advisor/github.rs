@@ -106,7 +106,7 @@ pub fn fetch_issues(repo: &str) -> Result<Vec<IssueRow>> {
 
 /// Executa um subcomando do `gh` já autenticado, devolvendo o stdout. Isola o
 /// shell-out (como o `curl` do incremento 1) para o resto do módulo ficar puro.
-fn gh(args: &[&str]) -> Result<String> {
+pub(crate) fn gh(args: &[&str]) -> Result<String> {
     let out = Command::new("gh").args(args).output().map_err(|e| {
         anyhow!("não encontrei o `gh` no PATH ({e}). Instale o GitHub CLI e rode `gh auth login`.")
     })?;

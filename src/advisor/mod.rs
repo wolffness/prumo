@@ -8,6 +8,7 @@
 //! variable, never the config file.
 
 pub mod github;
+pub mod kanban;
 
 use std::process::Command;
 

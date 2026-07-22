@@ -113,7 +113,7 @@ pub struct App {
     /// Per-view saved cursor, indexed by `View::idx()`. `set_view` snapshots
     /// the outgoing view's cursor here and restores the incoming view's, so
     /// each view remembers where the user last was.
-    pub(crate) view_cursor: [usize; 3],
+    pub(crate) view_cursor: [usize; 4],
     /// Crate-private: same reason as `view` — `visible_cache` would drift.
     /// Read via `filter()`; mutate via `set_search`/`set_project`/etc.
     pub(crate) filter: Filter,
@@ -159,6 +159,8 @@ pub struct App {
     pub(crate) issues_project: Option<String>,
     /// Cursor próprio da visão Issues (as issues não são tarefas).
     pub(crate) issues_cursor: usize,
+    /// Cache da sessão dos cards da visão Kanban (board Project v2).
+    pub(crate) kanban: Vec<crate::advisor::kanban::KanbanCard>,
     /// The search string that was active when the `ff` picker opened, so
     /// cancelling (`Esc`) restores it instead of leaving the previewed
     /// filter applied. `None` outside `Mode::PickSavedFilter`.
@@ -172,7 +174,7 @@ pub struct App {
     /// Vertical scroll offset (rows from the top of the line list) for each
     /// view, keyed by `View::idx()`. Updated at render time via `Cell` so the
     /// renderer can keep the cursor row visible without taking `&mut self`.
-    pub(crate) view_scroll: [Cell<u16>; 3],
+    pub(crate) view_scroll: [Cell<u16>; 4],
     /// Handle to the in-TUI capture server. `None` until the first time
     /// the user presses `s` (or invokes "show capture QR" from the
     /// palette). Once bound, the entry stays for the rest of the
@@ -254,7 +256,7 @@ impl App {
             mode: Mode::Normal,
             prefs: Prefs::from_config(cfg),
             cursor: 0,
-            view_cursor: [0; 3],
+            view_cursor: [0; 4],
             filter: Filter::default(),
             draft: DraftState::default(),
             selection: Selection::default(),
@@ -272,13 +274,14 @@ impl App {
             advisor_links,
             advisor_goals,
             issues: Vec::new(),
+            kanban: Vec::new(),
             issues_repo: None,
             issues_project: None,
             issues_cursor: 0,
             saved_pick_restore: None,
             saved_pick_idx: 0,
             command_palette: CommandPaletteState::default(),
-            view_scroll: [Cell::new(0), Cell::new(0), Cell::new(0)],
+            view_scroll: [Cell::new(0), Cell::new(0), Cell::new(0), Cell::new(0)],
             share: None,
             notes_dir: note_dir,
             pending_editor_path: None,
@@ -1005,6 +1008,39 @@ impl App {
     pub fn exit_issues_view(&mut self) {
         self.set_view(View::List);
         self.mode = Mode::Normal;
+    }
+
+    /// Cards da visão Kanban (somente leitura).
+    pub fn kanban(&self) -> &[crate::advisor::kanban::KanbanCard] {
+        &self.kanban
+    }
+
+    /// Entra na visão Kanban (`K`) e busca os cards do board.
+    pub fn enter_kanban_view(&mut self) {
+        self.set_view(View::Kanban);
+        self.mode = Mode::Kanban;
+        self.refresh_kanban();
+    }
+
+    /// Sai da visão Kanban de volta para a Lista (Normal).
+    pub fn exit_kanban_view(&mut self) {
+        self.set_view(View::List);
+        self.mode = Mode::Normal;
+    }
+
+    /// (Re)busca os cards do board para a visão Kanban (tecla `r`).
+    pub fn refresh_kanban(&mut self) {
+        match crate::advisor::kanban::fetch_board() {
+            Ok(cards) => {
+                let n = cards.len();
+                self.kanban = cards;
+                self.flash(format!("{n} {}", crate::brand::tr("cards", "cards")));
+            }
+            Err(e) => self.flash(format!(
+                "{}: {e}",
+                crate::brand::tr("board fetch failed", "falha ao buscar o board")
+            )),
+        }
     }
 
     /// (Re)busca as issues abertas de um repo para a visão Issues.
