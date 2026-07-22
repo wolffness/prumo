@@ -70,16 +70,34 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     ])
     .areas(body_area);
 
+    // Card selecionado = posição do cursor na ordem visível (coluna a coluna),
+    // a mesma ordem que `j`/`k` percorrem no App.
+    let selected = app
+        .kanban_visible_order()
+        .get(app.kanban_cursor())
+        .copied();
     for (col_area, col_name) in columns.into_iter().zip(COLUMNS) {
-        render_column(frame, col_area, app, col_name, cards);
+        render_column(frame, col_area, app, col_name, cards, selected);
     }
 }
 
-/// Uma coluna do board: título `⏸ Todo (n)` + cards empilhados.
-fn render_column(frame: &mut Frame, area: Rect, app: &App, column: &str, cards: &[KanbanCard]) {
+/// Uma coluna do board: título `⏸ Todo (n)` + cards empilhados. O card
+/// selecionado ganha `▸` e negrito (símbolo, não só cor).
+fn render_column(
+    frame: &mut Frame,
+    area: Rect,
+    app: &App,
+    column: &str,
+    cards: &[KanbanCard],
+    selected: Option<usize>,
+) {
     let theme = app.theme();
     let width = usize::from(area.width).saturating_sub(3).max(8);
-    let in_column: Vec<&KanbanCard> = cards.iter().filter(|c| c.status == column).collect();
+    let in_column: Vec<(usize, &KanbanCard)> = cards
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.status == column)
+        .collect();
 
     let mut lines: Vec<Line> = Vec::with_capacity(2 + in_column.len() * 2);
     lines.push(Line::from(Span::styled(
@@ -94,27 +112,41 @@ fn render_column(frame: &mut Frame, area: Rect, app: &App, column: &str, cards: 
             Style::default().fg(theme.dim),
         )));
     }
-    for card in in_column {
+    for (idx, card) in in_column {
+        let is_selected = selected == Some(idx);
+        let bg = if is_selected { theme.selected } else { theme.bg };
+        let prefix = if is_selected { "▸" } else { " " };
         let agent = if card.agent.is_empty() {
             tr("unassigned", "sem agente").to_string()
         } else {
             card.agent.clone()
         };
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!(" #{} ", card.number),
-                Style::default().fg(theme.pri_a),
-            ),
-            Span::styled(format!("· {agent}"), Style::default().fg(theme.dim)),
-        ]));
+        lines.push(
+            Line::from(vec![
+                Span::styled(prefix.to_string(), Style::default().fg(theme.accent)),
+                Span::styled(
+                    format!("#{} ", card.number),
+                    Style::default().fg(theme.pri_a),
+                ),
+                Span::styled(format!("· {agent}"), Style::default().fg(theme.dim)),
+            ])
+            .style(Style::default().bg(bg)),
+        );
         let mut title = card.title.clone();
         if title.chars().count() > width {
             title = title.chars().take(width.saturating_sub(1)).collect::<String>() + "…";
         }
-        lines.push(Line::from(Span::styled(
-            format!("   {title}"),
-            Style::default().fg(theme.fg),
-        )));
+        lines.push(
+            Line::from(Span::styled(
+                format!("   {title}"),
+                Style::default().fg(theme.fg).add_modifier(if is_selected {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                }),
+            ))
+            .style(Style::default().bg(bg)),
+        );
     }
 
     frame.render_widget(

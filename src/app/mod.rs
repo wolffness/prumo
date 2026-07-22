@@ -161,6 +161,10 @@ pub struct App {
     pub(crate) issues_cursor: usize,
     /// Cache da sessão dos cards da visão Kanban (board Project v2).
     pub(crate) kanban: Vec<crate::advisor::kanban::KanbanCard>,
+    /// Metadados do board (ids de campos/opções), buscados no refresh.
+    pub(crate) kanban_meta: Option<crate::advisor::kanban::BoardMeta>,
+    /// Cursor da visão Kanban sobre a ordem visível (coluna a coluna).
+    pub(crate) kanban_cursor: usize,
     /// The search string that was active when the `ff` picker opened, so
     /// cancelling (`Esc`) restores it instead of leaving the previewed
     /// filter applied. `None` outside `Mode::PickSavedFilter`.
@@ -275,6 +279,8 @@ impl App {
             advisor_goals,
             issues: Vec::new(),
             kanban: Vec::new(),
+            kanban_meta: None,
+            kanban_cursor: 0,
             issues_repo: None,
             issues_project: None,
             issues_cursor: 0,
@@ -1028,17 +1034,141 @@ impl App {
         self.mode = Mode::Normal;
     }
 
-    /// (Re)busca os cards do board para a visão Kanban (tecla `r`).
+    /// (Re)busca os cards e os metadados do board para a visão Kanban
+    /// (tecla `r`). Sem metadados a visão segue read-only (H/L/a avisam).
     pub fn refresh_kanban(&mut self) {
         match crate::advisor::kanban::fetch_board() {
             Ok(cards) => {
                 let n = cards.len();
                 self.kanban = cards;
+                self.kanban_cursor = self.kanban_cursor.min(n.saturating_sub(1));
+                self.kanban_meta = crate::advisor::kanban::fetch_board_meta().ok();
                 self.flash(format!("{n} {}", crate::brand::tr("cards", "cards")));
             }
             Err(e) => self.flash(format!(
                 "{}: {e}",
                 crate::brand::tr("board fetch failed", "falha ao buscar o board")
+            )),
+        }
+    }
+
+    /// Índices dos cards na ordem visível do board (coluna a coluna), para o
+    /// cursor e a UI concordarem sobre o que é "o próximo card".
+    pub fn kanban_visible_order(&self) -> Vec<usize> {
+        let mut order = Vec::with_capacity(self.kanban.len());
+        for col in crate::advisor::kanban::COLUMNS {
+            order.extend(
+                self.kanban
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.status == col)
+                    .map(|(i, _)| i),
+            );
+        }
+        order
+    }
+
+    /// Posição do cursor da visão Kanban (na ordem visível).
+    pub fn kanban_cursor(&self) -> usize {
+        self.kanban_cursor
+    }
+
+    /// Move o cursor do Kanban (`j`/`k`) pela ordem visível.
+    pub fn kanban_step(&mut self, down: bool) {
+        let n = self.kanban_visible_order().len();
+        if n == 0 {
+            return;
+        }
+        self.kanban_cursor = if down {
+            (self.kanban_cursor + 1).min(n - 1)
+        } else {
+            self.kanban_cursor.saturating_sub(1)
+        };
+    }
+
+    /// Move o card selecionado para a coluna anterior/seguinte (`H`/`L`).
+    /// A API confirma primeiro; o estado local só muda em caso de sucesso.
+    pub fn kanban_move_status(&mut self, forward: bool) {
+        use crate::advisor::kanban::COLUMNS;
+        let Some(meta) = self.kanban_meta.clone() else {
+            self.flash(crate::brand::tr(
+                "board metadata missing — press r",
+                "sem metadados do board — aperte r",
+            ));
+            return;
+        };
+        let order = self.kanban_visible_order();
+        let Some(&idx) = order.get(self.kanban_cursor) else {
+            return;
+        };
+        let card = &self.kanban[idx];
+        let cur = COLUMNS.iter().position(|c| *c == card.status).unwrap_or(0);
+        let next = if forward {
+            (cur + 1).min(COLUMNS.len() - 1)
+        } else {
+            cur.saturating_sub(1)
+        };
+        if next == cur {
+            return;
+        }
+        let target = COLUMNS[next];
+        let Some((opt_id, _)) = meta.status_options.iter().find(|(_, n)| n == target) else {
+            self.flash(format!(
+                "{}: {target}",
+                crate::brand::tr("column missing on board", "coluna inexistente no board")
+            ));
+            return;
+        };
+        match crate::advisor::kanban::set_item_field(&card.item_id, &meta.status_field, opt_id) {
+            Ok(()) => {
+                let number = self.kanban[idx].number;
+                self.kanban[idx].status = target.to_string();
+                // O cursor segue o card para a nova coluna.
+                if let Some(pos) = self.kanban_visible_order().iter().position(|&i| i == idx) {
+                    self.kanban_cursor = pos;
+                }
+                self.flash(format!("#{number} → {target}"));
+            }
+            Err(e) => self.flash(format!(
+                "{}: {e}",
+                crate::brand::tr("board update failed", "falha ao atualizar o board")
+            )),
+        }
+    }
+
+    /// Cicla o Agent do card selecionado (`a`) pelas opções do board.
+    /// A API confirma primeiro; o estado local só muda em caso de sucesso.
+    pub fn kanban_cycle_agent(&mut self) {
+        let Some(meta) = self.kanban_meta.clone() else {
+            self.flash(crate::brand::tr(
+                "board metadata missing — press r",
+                "sem metadados do board — aperte r",
+            ));
+            return;
+        };
+        if meta.agent_options.is_empty() {
+            return;
+        }
+        let order = self.kanban_visible_order();
+        let Some(&idx) = order.get(self.kanban_cursor) else {
+            return;
+        };
+        let card = &self.kanban[idx];
+        let cur = meta.agent_options.iter().position(|(_, n)| *n == card.agent);
+        let next = match cur {
+            Some(i) => (i + 1) % meta.agent_options.len(),
+            None => 0,
+        };
+        let (opt_id, name) = meta.agent_options[next].clone();
+        match crate::advisor::kanban::set_item_field(&card.item_id, &meta.agent_field, &opt_id) {
+            Ok(()) => {
+                let number = self.kanban[idx].number;
+                self.kanban[idx].agent = name.clone();
+                self.flash(format!("#{number} · {name}"));
+            }
+            Err(e) => self.flash(format!(
+                "{}: {e}",
+                crate::brand::tr("board update failed", "falha ao atualizar o board")
             )),
         }
     }

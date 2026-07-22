@@ -443,10 +443,16 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
     }
 }
 
-/// Visão Kanban do board (Project v2), somente leitura: `r` atualiza,
-/// `Esc`/`l`/`K`/`q` volta para a lista.
+/// Visão Kanban do board (Project v2): `j`/`k` navegam, `H`/`L` movem o card
+/// de coluna (Status), `a` cicla o Agent, `r` atualiza, `Esc`/`l`/`K`/`q`
+/// volta para a lista.
 fn handle_kanban(app: &mut App, key: KeyEvent) {
     match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.kanban_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.kanban_step(false),
+        KeyCode::Char('H') | KeyCode::Left => app.kanban_move_status(false),
+        KeyCode::Char('L') | KeyCode::Right => app.kanban_move_status(true),
+        KeyCode::Char('a') => app.kanban_cycle_agent(),
         KeyCode::Char('r') => app.refresh_kanban(),
         KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('K') | KeyCode::Char('q') => {
             app.exit_kanban_view();
