@@ -7,6 +7,7 @@
 //! review and apply by hand. The API key (Claude) comes from an environment
 //! variable, never the config file.
 
+pub mod dispatch;
 pub mod github;
 pub mod kanban;
 
