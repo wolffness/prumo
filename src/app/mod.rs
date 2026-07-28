@@ -15,6 +15,7 @@ use crate::todo::Task;
 mod autocomplete;
 mod bulk;
 mod chord;
+mod dispatch_draft;
 mod draft;
 mod draft_overlay;
 mod flash;
@@ -36,6 +37,7 @@ pub use crate::core::History;
 pub use crate::core::filter::{ListDueBucket, ordered_unique};
 pub use autocomplete::{ActiveToken, AutocompleteTarget, TokenKind, active_token};
 pub use chord::Chord;
+pub use dispatch_draft::DispatchCtx;
 pub use draft::{DialogInputMode, DraftCursor, DraftState};
 pub use draft_overlay::{
     BuilderField, CalendarState, CalendarTarget, DraftOverlay, OverlayKind, PriorityChooserState,
@@ -159,15 +161,6 @@ pub struct App {
     pub(crate) issues_project: Option<String>,
     /// Cursor próprio da visão Issues (as issues não são tarefas).
     pub(crate) issues_cursor: usize,
-    /// Cache da sessão dos cards da visão Kanban (board Project v2).
-    pub(crate) kanban: Vec<crate::advisor::kanban::KanbanCard>,
-    /// Metadados do board (ids de campos/opções), buscados no refresh.
-    pub(crate) kanban_meta: Option<crate::advisor::kanban::BoardMeta>,
-    /// Estado do agente herdr de cada card (paralelo a `kanban`), atualizado
-    /// no refresh. `None` = sem agente despachado (ou herdr indisponível).
-    pub(crate) kanban_agent_status: Vec<Option<String>>,
-    /// Cursor da visão Kanban sobre a ordem visível (coluna a coluna).
-    pub(crate) kanban_cursor: usize,
     /// The search string that was active when the `ff` picker opened, so
     /// cancelling (`Esc`) restores it instead of leaving the previewed
     /// filter applied. `None` outside `Mode::PickSavedFilter`.
@@ -199,6 +192,9 @@ pub struct App {
     pending_shell: Option<String>,
     /// In-TUI note editor. `Some` only while `Mode::Note` is active.
     pub note_panel: Option<NotePanel>,
+    /// `Some` enquanto o note panel edita um draft de despacho (`D`): muda o
+    /// footer e habilita `Tab` (agente) e `Ctrl-D` (despachar).
+    pub dispatch_ctx: Option<DispatchCtx>,
     /// Display-text → link-target registry for the OSC 8 overlay. The
     /// hyperlink pass (`ui::hyperlinks`) can only see the rendered text of an
     /// underlined run, so renderers that want a link target different from
@@ -281,10 +277,6 @@ impl App {
             advisor_links,
             advisor_goals,
             issues: Vec::new(),
-            kanban: Vec::new(),
-            kanban_meta: None,
-            kanban_agent_status: Vec::new(),
-            kanban_cursor: 0,
             issues_repo: None,
             issues_project: None,
             issues_cursor: 0,
@@ -297,6 +289,7 @@ impl App {
             pending_editor_path: None,
             pending_shell: None,
             note_panel: None,
+            dispatch_ctx: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
             click_targets: std::cell::RefCell::new(Vec::new()),
             subtask_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
@@ -1018,267 +1011,6 @@ impl App {
     pub fn exit_issues_view(&mut self) {
         self.set_view(View::List);
         self.mode = Mode::Normal;
-    }
-
-    /// Cards da visão Kanban (somente leitura).
-    pub fn kanban(&self) -> &[crate::advisor::kanban::KanbanCard] {
-        &self.kanban
-    }
-
-    /// Entra na visão Kanban (`K`) e busca os cards do board.
-    pub fn enter_kanban_view(&mut self) {
-        self.set_view(View::Kanban);
-        self.mode = Mode::Kanban;
-        self.refresh_kanban();
-    }
-
-    /// Sai da visão Kanban de volta para a Lista (Normal).
-    pub fn exit_kanban_view(&mut self) {
-        self.set_view(View::List);
-        self.mode = Mode::Normal;
-    }
-
-    /// (Re)busca os cards e os metadados do board para a visão Kanban
-    /// (tecla `r`). Sem metadados a visão segue read-only (H/L/a avisam).
-    pub fn refresh_kanban(&mut self) {
-        match crate::advisor::kanban::fetch_board() {
-            Ok(cards) => {
-                let n = cards.len();
-                self.kanban = cards;
-                self.kanban_cursor = self.kanban_cursor.min(n.saturating_sub(1));
-                self.kanban_meta = crate::advisor::kanban::fetch_board_meta().ok();
-                self.flash(format!("{n} {}", crate::brand::tr("cards", "cards")));
-                // Depois do flash de contagem: se o herdr estiver fora do ar,
-                // o aviso dele é o que deve ficar visível.
-                self.refresh_kanban_agent_status();
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("board fetch failed", "falha ao buscar o board")
-            )),
-        }
-    }
-
-    /// Estado do agente herdr por card. Se nenhum agente `issue-*` existe
-    /// (ou o herdr está fora do PATH), evita N consultas e zera os badges;
-    /// a indisponibilidade do herdr vira um flash único, não um erro.
-    fn refresh_kanban_agent_status(&mut self) {
-        use crate::advisor::dispatch;
-        self.kanban_agent_status = match dispatch::dispatched_count() {
-            Ok(0) => vec![None; self.kanban.len()],
-            Ok(_) => self
-                .kanban
-                .iter()
-                .map(|c| dispatch::agent_status(c.number))
-                .collect(),
-            Err(_) => {
-                self.flash(crate::brand::tr(
-                    "herdr unavailable — no agent badges",
-                    "herdr indisponível — sem estado dos agentes",
-                ));
-                vec![None; self.kanban.len()]
-            }
-        };
-    }
-
-    /// Badge do agente do card `idx` (`▶ working`, `⚠ blocked`, ...), se há
-    /// agente despachado. Símbolo+texto, nunca só cor.
-    pub fn kanban_agent_badge(&self, idx: usize) -> Option<String> {
-        let status = self.kanban_agent_status.get(idx)?.as_deref()?;
-        let symbol = match status {
-            "working" => "▶",
-            "blocked" => "⚠",
-            "idle" => "⏸",
-            _ => "·",
-        };
-        Some(format!("{symbol} {status}"))
-    }
-
-    /// Índices dos cards na ordem visível do board (coluna a coluna), para o
-    /// cursor e a UI concordarem sobre o que é "o próximo card".
-    pub fn kanban_visible_order(&self) -> Vec<usize> {
-        let mut order = Vec::with_capacity(self.kanban.len());
-        for col in crate::advisor::kanban::COLUMNS {
-            order.extend(
-                self.kanban
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, c)| c.status == col)
-                    .map(|(i, _)| i),
-            );
-        }
-        order
-    }
-
-    /// Posição do cursor da visão Kanban (na ordem visível).
-    pub fn kanban_cursor(&self) -> usize {
-        self.kanban_cursor
-    }
-
-    /// Move o cursor do Kanban (`j`/`k`) pela ordem visível.
-    pub fn kanban_step(&mut self, down: bool) {
-        let n = self.kanban_visible_order().len();
-        if n == 0 {
-            return;
-        }
-        self.kanban_cursor = if down {
-            (self.kanban_cursor + 1).min(n - 1)
-        } else {
-            self.kanban_cursor.saturating_sub(1)
-        };
-    }
-
-    /// Move o card selecionado para a coluna anterior/seguinte (`H`/`L`).
-    /// A API confirma primeiro; o estado local só muda em caso de sucesso.
-    pub fn kanban_move_status(&mut self, forward: bool) {
-        use crate::advisor::kanban::COLUMNS;
-        // A checagem de metadados fica em `kanban_set_status`.
-        let order = self.kanban_visible_order();
-        let Some(&idx) = order.get(self.kanban_cursor) else {
-            return;
-        };
-        let card = &self.kanban[idx];
-        let cur = COLUMNS.iter().position(|c| *c == card.status).unwrap_or(0);
-        let next = if forward {
-            (cur + 1).min(COLUMNS.len() - 1)
-        } else {
-            cur.saturating_sub(1)
-        };
-        if next == cur {
-            return;
-        }
-        self.kanban_set_status(idx, COLUMNS[next]);
-    }
-
-    /// Seta o Status do card `idx` para `target` via API; só muda o estado
-    /// local (e o cursor, que segue o card) depois que a API confirma.
-    fn kanban_set_status(&mut self, idx: usize, target: &str) {
-        let Some(meta) = self.kanban_meta.clone() else {
-            self.flash(crate::brand::tr(
-                "board metadata missing — press r",
-                "sem metadados do board — aperte r",
-            ));
-            return;
-        };
-        let Some((opt_id, _)) = meta.status_options.iter().find(|(_, n)| n == target) else {
-            self.flash(format!(
-                "{}: {target}",
-                crate::brand::tr("column missing on board", "coluna inexistente no board")
-            ));
-            return;
-        };
-        let card = &self.kanban[idx];
-        match crate::advisor::kanban::set_item_field(&card.item_id, &meta.status_field, opt_id) {
-            Ok(()) => {
-                let number = self.kanban[idx].number;
-                self.kanban[idx].status = target.to_string();
-                // O cursor segue o card para a nova coluna.
-                if let Some(pos) = self.kanban_visible_order().iter().position(|&i| i == idx) {
-                    self.kanban_cursor = pos;
-                }
-                self.flash(format!("#{number} → {target}"));
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("board update failed", "falha ao atualizar o board")
-            )),
-        }
-    }
-
-    /// Despacha o card selecionado (`d`): exige Agent definido, respeita a
-    /// fila (máx. [`MAX_DISPATCHED`](crate::advisor::dispatch::MAX_DISPATCHED))
-    /// e, em caso de sucesso, move o card para In Progress.
-    pub fn kanban_dispatch(&mut self) {
-        use crate::advisor::dispatch;
-        let order = self.kanban_visible_order();
-        let Some(&idx) = order.get(self.kanban_cursor) else {
-            return;
-        };
-        let card = self.kanban[idx].clone();
-        if card.agent.is_empty() {
-            self.flash(crate::brand::tr(
-                "no agent — press a to set one",
-                "sem agente — defina com a",
-            ));
-            return;
-        }
-        if dispatch::is_dispatched(card.number) {
-            self.flash(format!(
-                "issue-{} {}",
-                card.number,
-                crate::brand::tr("already running", "já em execução")
-            ));
-            return;
-        }
-        match dispatch::dispatched_count() {
-            Ok(n) if n >= dispatch::MAX_DISPATCHED => {
-                self.flash(format!(
-                    "{} — {n} {}",
-                    crate::brand::tr("queue full", "fila cheia"),
-                    crate::brand::tr("agents active", "agentes ativos")
-                ));
-                return;
-            }
-            Ok(_) => {}
-            Err(e) => {
-                self.flash(format!("herdr: {e}"));
-                return;
-            }
-        }
-        match dispatch::dispatch(&card) {
-            Ok(()) => {
-                self.kanban_set_status(idx, "In Progress");
-                if idx < self.kanban_agent_status.len() {
-                    self.kanban_agent_status[idx] = crate::advisor::dispatch::agent_status(card.number);
-                }
-                self.flash(format!(
-                    "▶ issue-{} {}",
-                    card.number,
-                    crate::brand::tr("dispatched", "despachado")
-                ));
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("dispatch failed", "falha no dispatch")
-            )),
-        }
-    }
-
-    /// Cicla o Agent do card selecionado (`a`) pelas opções do board.
-    /// A API confirma primeiro; o estado local só muda em caso de sucesso.
-    pub fn kanban_cycle_agent(&mut self) {
-        let Some(meta) = self.kanban_meta.clone() else {
-            self.flash(crate::brand::tr(
-                "board metadata missing — press r",
-                "sem metadados do board — aperte r",
-            ));
-            return;
-        };
-        if meta.agent_options.is_empty() {
-            return;
-        }
-        let order = self.kanban_visible_order();
-        let Some(&idx) = order.get(self.kanban_cursor) else {
-            return;
-        };
-        let card = &self.kanban[idx];
-        let cur = meta.agent_options.iter().position(|(_, n)| *n == card.agent);
-        let next = match cur {
-            Some(i) => (i + 1) % meta.agent_options.len(),
-            None => 0,
-        };
-        let (opt_id, name) = meta.agent_options[next].clone();
-        match crate::advisor::kanban::set_item_field(&card.item_id, &meta.agent_field, &opt_id) {
-            Ok(()) => {
-                let number = self.kanban[idx].number;
-                self.kanban[idx].agent = name.clone();
-                self.flash(format!("#{number} · {name}"));
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("board update failed", "falha ao atualizar o board")
-            )),
-        }
     }
 
     /// (Re)busca as issues abertas de um repo para a visão Issues.

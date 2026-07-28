@@ -438,27 +438,7 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Issues => handle_issues(app, key),
-        Mode::Kanban => handle_kanban(app, key),
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
-    }
-}
-
-/// Visão Kanban do board (Project v2): `j`/`k` navegam, `H`/`L` movem o card
-/// de coluna (Status), `a` cicla o Agent, `r` atualiza, `Esc`/`l`/`K`/`q`
-/// volta para a lista.
-fn handle_kanban(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Char('j') | KeyCode::Down => app.kanban_step(true),
-        KeyCode::Char('k') | KeyCode::Up => app.kanban_step(false),
-        KeyCode::Char('H') | KeyCode::Left => app.kanban_move_status(false),
-        KeyCode::Char('L') | KeyCode::Right => app.kanban_move_status(true),
-        KeyCode::Char('a') => app.kanban_cycle_agent(),
-        KeyCode::Char('d') => app.kanban_dispatch(),
-        KeyCode::Char('r') => app.refresh_kanban(),
-        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('K') | KeyCode::Char('q') => {
-            app.exit_kanban_view();
-        }
-        _ => {}
     }
 }
 
@@ -514,6 +494,18 @@ fn handle_share(app: &mut App, _key: KeyEvent) {
 /// Esc back to view. Ctrl+S saves in either mode.
 fn handle_note(app: &mut App, key: KeyEvent) {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    // Teclas do draft de despacho, antes do empréstimo do panel: `Tab` cicla
+    // o agente, `Ctrl-D` despacha (aqui o Ctrl-D vale mais que delete-forward).
+    if app.dispatch_ctx.is_some() {
+        if key.code == KeyCode::Tab {
+            app.dispatch_cycle_agent();
+            return;
+        }
+        if ctrl && key.code == KeyCode::Char('d') {
+            app.dispatch_send();
+            return;
+        }
+    }
     let Some(panel) = app.note_panel.as_mut() else {
         app.mode = Mode::Normal;
         return;
@@ -693,6 +685,7 @@ fn close_note_panel(app: &mut App, to_editor: bool) {
         }
     }
     app.mode = Mode::Normal;
+    app.dispatch_ctx = None;
     if to_editor {
         app.queue_editor_path(panel.path.clone());
     }
@@ -1301,7 +1294,6 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('r') => Action::Reschedule,
         KeyCode::Char('a') => Action::ToggleArchiveView,
         KeyCode::Char('I') => Action::ToggleIssuesView,
-        KeyCode::Char('K') => Action::ToggleKanbanView,
         KeyCode::Char('l') => Action::GoList,
         KeyCode::Char('e') => Action::BeginEdit,
         KeyCode::Char('i') => Action::BeginEditInsert,
@@ -1311,8 +1303,11 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('t') => Action::BeginAttach,
         KeyCode::Enter => Action::OpenAttachments,
         KeyCode::Char('x') => Action::ToggleComplete,
+        // `zd` cycles density (a `z` leader for raras teclas de layout).
+        KeyCode::Char('d') if app.chord.consume('z') => Action::CycleDensity,
         // 'dd' chord. First press arms; second fires.
         KeyCode::Char('d') if app.chord.toggle('d') => Action::Delete,
+        KeyCode::Char('z') => Action::ArmZ,
         // 'yy' chord copies the whole line; 'yb' (after 'y' is armed) copies
         // the body only. Plain 'y' just arms the leader.
         KeyCode::Char('y') if app.chord.toggle('y') => Action::CopyLine,
@@ -1363,7 +1358,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('[') => Action::ToggleLeftPane,
         KeyCode::Char(']') => Action::ToggleRightPane,
         KeyCode::Char('T') => Action::OpenThemePicker,
-        KeyCode::Char('D') => Action::CycleDensity,
+        KeyCode::Char('D') => Action::OpenDispatchDraft,
         KeyCode::Char('L') => Action::ToggleLineNum,
         KeyCode::Char('H') => Action::ToggleShowDone,
         KeyCode::Char('F') => Action::ToggleShowFuture,
@@ -1518,7 +1513,8 @@ fn apply_action(app: &mut App, action: Action) {
             app.set_view(next);
         }
         Action::ToggleIssuesView => app.enter_issues_view(),
-        Action::ToggleKanbanView => app.enter_kanban_view(),
+        Action::OpenDispatchDraft => app.open_dispatch_draft(),
+        Action::ArmZ => app.chord.arm('z'),
         Action::ArchiveCompleted => {
             if app.view() == View::Archive {
                 app.flash("already in archive");

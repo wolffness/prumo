@@ -20,7 +20,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Search if app.search_is_shell() => "SHELL".into(),
         Mode::Search => tr("SEARCH", "BUSCA").into(),
         Mode::Issues => "ISSUES".into(),
-        Mode::Kanban => "KANBAN".into(),
         Mode::Visual => "VISUAL".into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),

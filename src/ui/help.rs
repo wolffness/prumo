@@ -147,7 +147,6 @@ fn advisor_shell() -> Section {
                 "  in view: g",
                 tr("AI rank by goal", "ranquear por objetivo (IA)"),
             ),
-            ("K", tr("Kanban board view", "visão Kanban do board")),
             (
                 "  in view: H/L · a · d",
                 tr(

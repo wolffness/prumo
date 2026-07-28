@@ -9,7 +9,6 @@
 
 pub mod dispatch;
 pub mod github;
-pub mod kanban;
 
 use std::process::Command;
 

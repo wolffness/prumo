@@ -40,8 +40,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    // O draft de despacho ganha uma linha extra de footer (agente + dir).
+    let footer_rows = if app.dispatch_ctx.is_some() { 2 } else { 1 };
     let [body_area, footer_area] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+        Layout::vertical([Constraint::Min(1), Constraint::Length(footer_rows)]).areas(inner);
 
     // Hard-wrap each buffer line into width-sized display rows. Char-exact
     // chunking (not word wrap) keeps the cursor mapping trivial: display
@@ -126,7 +128,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         body_area,
     );
 
-    let hint = if panel.insert {
+    let hint = if app.dispatch_ctx.is_some() {
+        tr(
+            "Tab agent · Ctrl-D dispatch · Ctrl-S save · o editor · Esc/q close (saves)",
+            "Tab agente · Ctrl-D despachar · Ctrl-S salvar · o editor · Esc/q fechar (salva)",
+        )
+    } else if panel.insert {
         tr(
             "Esc view · Enter newline · Ctrl-S save",
             "Esc visualizar · Enter nova linha · Ctrl-S salvar",
@@ -137,12 +144,19 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             "i editar · Espaço alternar · n subtarefa · o editor · Esc/q fechar (salva)",
         )
     };
+    let mut footer: Vec<Line> = Vec::new();
+    if let Some(ctx) = app.dispatch_ctx.as_ref() {
+        footer.push(Line::from(Span::styled(
+            format!(" {}", ctx.status_line()),
+            Style::default().fg(theme.accent),
+        )));
+    }
+    footer.push(Line::from(Span::styled(
+        format!(" {hint}"),
+        Style::default().fg(theme.dim),
+    )));
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            format!(" {hint}"),
-            Style::default().fg(theme.dim),
-        )))
-        .style(Style::default().bg(theme.panel)),
+        Paragraph::new(footer).style(Style::default().bg(theme.panel)),
         footer_area,
     );
 }
