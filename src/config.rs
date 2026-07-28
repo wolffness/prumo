@@ -54,8 +54,9 @@ pub struct Config {
     pub advisor: Option<bool>,
     /// Advisor LLM backend: `ollama` (default, local) or `claude`.
     pub advisor_backend: Option<String>,
-    /// Advisor model override; defaults per backend when unset. The API key
-    /// (for cloud backends) is read from the environment, never from here.
+    /// Advisor model override; defaults per backend when unset. The Claude
+    /// backend uses the Claude Code CLI's own login (subscription OAuth);
+    /// no API key is involved.
     pub advisor_model: Option<String>,
     /// Vínculos projeto→repo do advisor. Cada par `(projeto, "owner/repo")`
     /// liga um projeto do todo.txt a um repositório do GitHub. Serializado

@@ -469,9 +469,11 @@ impl App {
         );
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
+            // Sem a env var o CLI usa o login OAuth da assinatura, não a API.
             let out = std::process::Command::new("claude")
                 .args(["-p", &prompt])
                 .current_dir(&dir)
+                .env_remove("ANTHROPIC_API_KEY")
                 .output();
             let result = match out {
                 Ok(o) if o.status.success() => {
