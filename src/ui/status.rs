@@ -21,6 +21,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Search => tr("SEARCH", "BUSCA").into(),
         Mode::Issues => "ISSUES".into(),
         Mode::Visual => "VISUAL".into(),
+        Mode::ConfirmDispatch => tr("CONFIRM", "CONFIRMAR").into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),
         Mode::PromptProject => tr("PROJECT", "PROJETO").into(),
@@ -102,6 +103,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Issues => tr(
             "j/k move · g rank · r refresh · Enter open · + import · Esc back",
             "j/k mover · g ranquear · r atualizar · Enter abrir · + importar · Esc voltar",
+        ),
+        Mode::ConfirmDispatch => tr(
+            "s/Enter complete tasks · n/Esc keep",
+            "s/Enter completar tarefas · n/Esc manter",
         ),
         _ => tr(
             "j/k · n new · r reschedule · x done · / search · ? help · u undo · q quit",

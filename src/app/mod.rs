@@ -200,6 +200,14 @@ pub struct App {
     pub(crate) dispatch_status: std::collections::HashMap<String, dispatch_draft::DispatchBadge>,
     /// Instante do último poll do herdr (throttle).
     pub(crate) dispatch_poll_at: Option<std::time::Instant>,
+    /// Slug cujo agente acabou de concluir, aguardando confirmação para
+    /// completar as tarefas (`Mode::ConfirmDispatch`).
+    pub(crate) dispatch_done_pending: Option<String>,
+    /// Slugs cuja conclusão já foi oferecida (aceita ou recusada) — não
+    /// perguntar de novo.
+    pub(crate) dispatch_done_seen: std::collections::HashSet<String>,
+    /// Receiver do brief-builder em background (`Ctrl-P` no draft).
+    pub(crate) prompt_improver: Option<Receiver<Result<String, String>>>,
     /// Display-text → link-target registry for the OSC 8 overlay. The
     /// hyperlink pass (`ui::hyperlinks`) can only see the rendered text of an
     /// underlined run, so renderers that want a link target different from
@@ -297,6 +305,9 @@ impl App {
             dispatch_ctx: None,
             dispatch_status: std::collections::HashMap::new(),
             dispatch_poll_at: None,
+            dispatch_done_pending: None,
+            dispatch_done_seen: std::collections::HashSet::new(),
+            prompt_improver: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
             click_targets: std::cell::RefCell::new(Vec::new()),
             subtask_cache: std::cell::RefCell::new(std::collections::HashMap::new()),

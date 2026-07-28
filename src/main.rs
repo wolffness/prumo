@@ -220,6 +220,10 @@ fn run(
         if app.poll_dispatch_status() {
             dirty = true;
         }
+        // Resultado do brief-builder (Ctrl-P no draft de despacho).
+        if app.poll_prompt_improver() {
+            dirty = true;
+        }
         // Poll the config hot-reload watcher. On signal, reload strictly
         // and apply the new prefs. On parse failure the old config stays
         // intact and a warning is flashed.
@@ -442,6 +446,11 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Issues => handle_issues(app, key),
+        Mode::ConfirmDispatch => match key.code {
+            KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_dispatch_done(),
+            KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.dismiss_dispatch_done(),
+            _ => {}
+        },
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
     }
 }
@@ -507,6 +516,10 @@ fn handle_note(app: &mut App, key: KeyEvent) {
         }
         if ctrl && key.code == KeyCode::Char('d') {
             app.dispatch_send();
+            return;
+        }
+        if ctrl && key.code == KeyCode::Char('p') {
+            app.dispatch_improve_prompt();
             return;
         }
     }

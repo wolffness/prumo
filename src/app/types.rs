@@ -56,6 +56,9 @@ pub enum Mode {
     /// Visão de issues do GitHub (`I`): `j`/`k` move, `r` atualiza, `Enter`
     /// abre no navegador, `+` importa para o todo.txt, `Esc`/`l`/`I` volta.
     Issues,
+    /// Confirmação pós-despacho: o agente concluiu; `s`/`Enter` completa as
+    /// tarefas do despacho, `n`/`Esc` mantém como estão.
+    ConfirmDispatch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

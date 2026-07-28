@@ -17,7 +17,7 @@ expression: buffer_to_text(&buf)
    @e│    i                 edit line (insert)        F                 show future in list   │     
    @h│    r                 reschedule task           [ / ]             toggle filter / detail│     
    @l│    x                 complete → archive        T                 cycle theme           │     
-   @p│    dd                delete task               D                 cycle density         │     
+   @p│    dd                delete task               zd                cycle density         │     
      │    p                 cycle priority A→B→C→·    L                 toggle line numbers   │     
      │    c                 add/remove context                                                │     
      │    +                 add project             NOTES & FILES                             │     
@@ -34,7 +34,8 @@ expression: buffer_to_text(&buf)
      │                                              ADVISOR & SHELL                           │     
      │                                                I                 GitHub issues view    │     
      │                                                  in view: g      AI rank by goal       │     
-     │                                                  in view: H/L · a · dmove column · cycl│     
+     │                                                D                 dispatch draft (select│     
+     │                                                  in draft: Tab · Ctrl-P · Ctrl-Dcycle a│     
      │                                                ! advisor on/off +penable/disable per pr│     
      │                                                ! advisor link    link a GitHub repo    │     
      │                                                ! advisor goal +p set the ranking goal  │     
@@ -42,7 +43,6 @@ expression: buffer_to_text(&buf)
      │────────────────────────────────────────────────────────────────────────────────────────│     
      │  FORMAT                                                                                │     
      │    (A)               priority A-Z              due:YYYY-MM-DD    due date              │     
-     │    YYYY-MM-DD        creation / done date      rec:Nu            recur (u in d/w/m/y/b)│     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
  HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo5

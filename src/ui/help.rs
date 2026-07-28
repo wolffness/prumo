@@ -132,7 +132,7 @@ fn view() -> Section {
                 tr("toggle filter / detail", "alternar filtro / detalhe"),
             ),
             ("T", tr("cycle theme", "alternar tema")),
-            ("D", tr("cycle density", "alternar densidade")),
+            ("zd", tr("cycle density", "alternar densidade")),
             ("L", tr("toggle line numbers", "números de linha")),
         ],
     )
@@ -148,10 +148,14 @@ fn advisor_shell() -> Section {
                 tr("AI rank by goal", "ranquear por objetivo (IA)"),
             ),
             (
-                "  in view: H/L · a · d",
+                "D",
+                tr("dispatch draft (selection)", "draft de despacho (seleção)"),
+            ),
+            (
+                "  in draft: Tab · Ctrl-P · Ctrl-D",
                 tr(
-                    "move column · cycle agent · dispatch",
-                    "mover coluna · ciclar agente · despachar",
+                    "cycle agent · improve prompt · dispatch",
+                    "ciclar agente · melhorar prompt · despachar",
                 ),
             ),
             (
