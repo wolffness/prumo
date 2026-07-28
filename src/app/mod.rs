@@ -535,6 +535,12 @@ impl App {
         self.pending_editor_path = Some(path);
     }
 
+    /// Redireciona a base das notas (testes do binário; o config faz isso na
+    /// construção).
+    pub fn set_notes_dir(&mut self, dir: PathBuf) {
+        self.notes_dir = dir;
+    }
+
     pub fn notes_dir(&self) -> &PathBuf {
         &self.notes_dir
     }

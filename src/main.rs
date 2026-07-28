@@ -2110,6 +2110,26 @@ mod tests {
     }
 
     #[test]
+    fn ctrl_p_in_dispatch_draft_does_not_open_the_palette() {
+        let mut app = build_app_with_archive("tarefa sem projeto\n", None);
+        let dir = app.file_path.parent().unwrap().to_path_buf();
+        app.set_notes_dir(dir);
+        app.open_dispatch_draft();
+        assert_eq!(app.mode, Mode::Note, "draft aberto no note panel");
+        // Sem +projeto o dir não resolve, então o Ctrl-P para no aviso — e é
+        // exatamente isso que o teste quer: a tecla foi roteada para o draft,
+        // não para a paleta de comandos.
+        let ctrl_p = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL);
+        handle_key(&mut app, ctrl_p, &KeyBindings::default());
+        assert_eq!(app.mode, Mode::Note, "Ctrl-P não pode abrir a paleta");
+        assert!(
+            app.flash_active().is_some_and(|f| f.contains('⚠')),
+            "aviso de dir não resolvido esperado, veio {:?}",
+            app.flash_active()
+        );
+    }
+
+    #[test]
     fn lowercase_a_toggles_archive_view() {
         let mut app = build_app_with_archive("a\n", Some("x 2026-05-02 2026-04-02 done\n"));
         assert_eq!(app.view(), View::List);
