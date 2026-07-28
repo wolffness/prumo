@@ -100,6 +100,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             hidden_keys: &app.prefs.hidden_keys,
             // Archived tasks are finished; the progress badge is noise there.
             subtask_progress: None,
+            dispatch: None,
         };
         if i == app.cursor {
             cursor_line = Some(lines.len());

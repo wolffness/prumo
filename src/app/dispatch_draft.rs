@@ -20,6 +20,24 @@ pub const AGENTS: &[(&str, &str)] = &[
     ("codex", "◆ codex"),
 ];
 
+/// Token `dispatch:<slug>` de uma tarefa despachada, se houver.
+pub fn slug_from_raw(raw: &str) -> Option<&str> {
+    raw.split_whitespace()
+        .find_map(|t| t.strip_prefix("dispatch:"))
+        .filter(|s| !s.is_empty())
+}
+
+/// Estado visível do agente de uma tarefa despachada. Símbolo + palavra na
+/// UI — nunca só cor (daltonismo).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchBadge {
+    Working,
+    Blocked,
+    Idle,
+    /// O agente não existe mais no herdr: terminou (ou foi encerrado).
+    Done,
+}
+
 /// Estado do draft de despacho enquanto o note panel o edita. `Some` muda o
 /// footer do panel e habilita `Tab` (agente) e `Ctrl-D` (despachar).
 pub struct DispatchCtx {
@@ -215,6 +233,62 @@ impl App {
                 tr("dispatch failed", "falha no despacho")
             )),
         }
+    }
+
+    /// Badge do agente da tarefa, se ela carrega um token `dispatch:`.
+    pub fn dispatch_badge_for(&self, task: &crate::todo::Task) -> Option<DispatchBadge> {
+        self.dispatch_status
+            .get(slug_from_raw(&task.raw)?)
+            .copied()
+    }
+
+    /// Poll do estado dos agentes despachados (badges da lista). Retorna true
+    /// quando algo mudou (o chamador redesenha). Throttle interno de 10s;
+    /// sem tokens `dispatch:` nas tarefas o custo é zero.
+    // ponytail: `herdr agent get` síncrono por slug no loop de UI — trocar
+    // por um poll em thread se a lista de despachos crescer.
+    pub fn poll_dispatch_status(&mut self) -> bool {
+        let slugs: Vec<String> = {
+            let mut s: Vec<String> = self
+                .tasks()
+                .iter()
+                .filter_map(|t| slug_from_raw(&t.raw).map(str::to_string))
+                .collect();
+            s.sort_unstable();
+            s.dedup();
+            s
+        };
+        if slugs.is_empty() {
+            let had = !self.dispatch_status.is_empty();
+            self.dispatch_status.clear();
+            return had;
+        }
+        let now = std::time::Instant::now();
+        if self
+            .dispatch_poll_at
+            .is_some_and(|t| now.duration_since(t).as_secs() < 10)
+        {
+            return false;
+        }
+        self.dispatch_poll_at = Some(now);
+        // herdr fora do ar não vira "✔ done" falso: sem `agent list`, os
+        // badges anteriores ficam como estão.
+        if dispatch::herdr(&["agent", "list"]).is_err() {
+            return false;
+        }
+        let mut new = std::collections::HashMap::new();
+        for slug in slugs {
+            let badge = match dispatch::agent_status(&slug).as_deref() {
+                Some("working") => DispatchBadge::Working,
+                Some("blocked") => DispatchBadge::Blocked,
+                Some(_) => DispatchBadge::Idle,
+                None => DispatchBadge::Done,
+            };
+            new.insert(slug, badge);
+        }
+        let changed = new != self.dispatch_status;
+        self.dispatch_status = new;
+        changed
     }
 
     /// Grava o token `dispatch:<slug>` nas tarefas do draft (persistente no

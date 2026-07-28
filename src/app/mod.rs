@@ -37,7 +37,7 @@ pub use crate::core::History;
 pub use crate::core::filter::{ListDueBucket, ordered_unique};
 pub use autocomplete::{ActiveToken, AutocompleteTarget, TokenKind, active_token};
 pub use chord::Chord;
-pub use dispatch_draft::DispatchCtx;
+pub use dispatch_draft::{DispatchBadge, DispatchCtx};
 pub use draft::{DialogInputMode, DraftCursor, DraftState};
 pub use draft_overlay::{
     BuilderField, CalendarState, CalendarTarget, DraftOverlay, OverlayKind, PriorityChooserState,
@@ -195,6 +195,11 @@ pub struct App {
     /// `Some` enquanto o note panel edita um draft de despacho (`D`): muda o
     /// footer e habilita `Tab` (agente) e `Ctrl-D` (despachar).
     pub dispatch_ctx: Option<DispatchCtx>,
+    /// Estado por slug dos agentes despachados (badges da lista), atualizado
+    /// pelo poll periódico do herdr.
+    pub(crate) dispatch_status: std::collections::HashMap<String, dispatch_draft::DispatchBadge>,
+    /// Instante do último poll do herdr (throttle).
+    pub(crate) dispatch_poll_at: Option<std::time::Instant>,
     /// Display-text → link-target registry for the OSC 8 overlay. The
     /// hyperlink pass (`ui::hyperlinks`) can only see the rendered text of an
     /// underlined run, so renderers that want a link target different from
@@ -290,6 +295,8 @@ impl App {
             pending_shell: None,
             note_panel: None,
             dispatch_ctx: None,
+            dispatch_status: std::collections::HashMap::new(),
+            dispatch_poll_at: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
             click_targets: std::cell::RefCell::new(Vec::new()),
             subtask_cache: std::cell::RefCell::new(std::collections::HashMap::new()),

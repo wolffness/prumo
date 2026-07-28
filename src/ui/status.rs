@@ -130,6 +130,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             tr("selected", "selecionadas")
         ));
     }
+    if let Some(summary) = dispatch_summary(app) {
+        right_parts.push(summary);
+    }
     right_parts.push(app.today().to_string());
     right_parts.push(format!(
         "{} {}",
@@ -212,6 +215,24 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             .right_aligned(),
         right_area,
     );
+}
+
+/// Resumo dos agentes despachados (`agentes: ▶2 ⚠1 ✔1`), ou `None` sem
+/// despachos ativos. Símbolo carrega o estado; a contagem acompanha.
+fn dispatch_summary(app: &App) -> Option<String> {
+    use crate::app::DispatchBadge as B;
+    if app.dispatch_status.is_empty() {
+        return None;
+    }
+    let count = |b: B| app.dispatch_status.values().filter(|&&v| v == b).count();
+    let mut parts = Vec::new();
+    for (badge, sym) in [(B::Working, "▶"), (B::Blocked, "⚠"), (B::Idle, "⏸"), (B::Done, "✔")] {
+        let n = count(badge);
+        if n > 0 {
+            parts.push(format!("{sym}{n}"));
+        }
+    }
+    Some(format!("{} {}", tr("agents:", "agentes:"), parts.join(" ")))
 }
 
 pub fn render_command_line(frame: &mut Frame, area: Rect, app: &App) {

@@ -216,6 +216,10 @@ fn run(
         if app.poll_update_check() {
             dirty = true;
         }
+        // Badges dos agentes despachados (throttle interno de 10s).
+        if app.poll_dispatch_status() {
+            dirty = true;
+        }
         // Poll the config hot-reload watcher. On signal, reload strictly
         // and apply the new prefs. On parse failure the old config stays
         // intact and a warning is flashed.
