@@ -522,6 +522,11 @@ fn handle_note(app: &mut App, key: KeyEvent) {
             app.dispatch_improve_prompt();
             return;
         }
+        // Enter numa linha `/comando` (/prompt, /go, /codex, ...) executa o
+        // comando em vez de quebrar linha.
+        if key.code == KeyCode::Enter && app.dispatch_try_slash_command() {
+            return;
+        }
     }
     let Some(panel) = app.note_panel.as_mut() else {
         app.mode = Mode::Normal;

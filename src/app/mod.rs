@@ -37,7 +37,7 @@ pub use crate::core::History;
 pub use crate::core::filter::{ListDueBucket, ordered_unique};
 pub use autocomplete::{ActiveToken, AutocompleteTarget, TokenKind, active_token};
 pub use chord::Chord;
-pub use dispatch_draft::{DispatchBadge, DispatchCtx};
+pub use dispatch_draft::{DispatchBadge, DispatchCtx, instructions_empty};
 pub use draft::{DialogInputMode, DraftCursor, DraftState};
 pub use draft_overlay::{
     BuilderField, CalendarState, CalendarTarget, DraftOverlay, OverlayKind, PriorityChooserState,

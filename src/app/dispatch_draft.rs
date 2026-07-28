@@ -50,58 +50,118 @@ pub struct DispatchCtx {
     /// Mais de um `+projeto` entre as tarefas: bloqueia o despacho (o draft
     /// exige um diretório só).
     pub mixed: bool,
-    /// `claude -p` do brief-builder rodando em background (Ctrl-P).
+    /// `claude -p` do brief-builder rodando em background (Ctrl-P/`/prompt`).
     pub busy: bool,
+    /// O brief-builder já rodou com sucesso: o footer promove o despacho.
+    pub briefed: bool,
 }
 
 impl DispatchCtx {
-    /// Linha de status do footer: agente + dir (ou o erro de resolução).
-    pub fn status_line(&self) -> String {
-        let agent = AGENTS[self.agent].1;
+    /// Rótulo do agente ativo (`◇ claude (sonnet)`, `◆ codex`, ...).
+    pub fn agent_label(&self) -> &'static str {
+        AGENTS[self.agent].1
+    }
+
+    /// Aviso ativo (`⚠ ...`/`⧗ ...`), ou `None` quando o despacho está livre.
+    pub fn warning(&self) -> Option<String> {
         if self.busy {
-            return format!(
-                "{agent} · ⧗ {}",
-                tr("improving prompt…", "melhorando prompt…")
-            );
+            return Some(format!("⧗ {}", tr("improving prompt…", "melhorando prompt…")));
         }
         if self.mixed {
-            return format!(
-                "{agent} · ⚠ {}",
+            return Some(format!(
+                "⚠ {}",
                 tr(
                     "tasks span multiple +projects — dispatch needs one dir",
                     "tarefas de vários +projetos — despacho exige 1 diretório"
                 )
-            );
+            ));
+        }
+        self.dir.as_ref().err().map(|e| format!("⚠ {e}"))
+    }
+
+    /// Linha de status do footer: agente + dir (ou o aviso ativo).
+    pub fn status_rest(&self) -> String {
+        if let Some(w) = self.warning() {
+            return w;
         }
         match &self.dir {
             Ok(dir) => {
                 let home = std::env::var("HOME").unwrap_or_default();
                 let shown = dir.to_string_lossy().replacen(&home, "~", 1);
-                format!("{agent} · dir: {shown}")
+                format!("dir: {shown}")
             }
-            Err(e) => format!("{agent} · ⚠ {e}"),
+            Err(e) => format!("⚠ {e}"),
         }
     }
 }
 
-/// Troca o conteúdo da seção `## Instruções`/`## Instructions` pelo brief.
+fn instructions_header(l: &str) -> bool {
+    let t = l.trim();
+    t == "## Instruções" || t == "## Instructions"
+}
+
+/// A seção `## Instruções` está sem conteúdo? (Sem a seção → false: texto
+/// livre do usuário conta como instrução.)
+pub fn instructions_empty(lines: &[String]) -> bool {
+    match lines.iter().position(|l| instructions_header(l)) {
+        Some(i) => lines[i + 1..].iter().all(|l| l.trim().is_empty()),
+        None => false,
+    }
+}
+
+/// Troca o conteúdo da seção `## Instruções`/`## Instructions` pelo brief,
+/// preservando o texto anterior numa seção `## Rascunho original` no fim.
 /// Sem a seção, o brief é anexado ao fim sob a seção nova.
 fn replace_instructions(lines: &mut Vec<String>, brief: &str) {
-    let header = |l: &str| {
-        let t = l.trim();
-        t == "## Instruções" || t == "## Instructions"
-    };
-    match lines.iter().position(|l| header(l)) {
-        Some(i) => lines.truncate(i + 1),
+    let original: Vec<String> = match lines.iter().position(|l| instructions_header(l)) {
+        Some(i) => {
+            let tail: Vec<String> = lines[i + 1..]
+                .iter()
+                .filter(|l| !l.trim().is_empty())
+                .cloned()
+                .collect();
+            lines.truncate(i + 1);
+            tail
+        }
         None => {
             if lines.last().is_some_and(|l| !l.trim().is_empty()) {
                 lines.push(String::new());
             }
             lines.push(tr("## Instructions", "## Instruções").to_string());
+            Vec::new()
         }
-    }
+    };
     lines.push(String::new());
     lines.extend(brief.lines().map(str::to_string));
+    if !original.is_empty() {
+        lines.push(String::new());
+        lines.push(tr("## Original draft", "## Rascunho original").to_string());
+        lines.push(String::new());
+        lines.extend(original);
+    }
+}
+
+/// Comando `/x` de uma linha do draft, se a linha for exatamente um comando
+/// conhecido. `/prompt` gera o brief, `/go` despacha, `/sonnet|/opus|/fable|
+/// /codex` trocam o agente.
+pub(crate) enum SlashCmd {
+    Prompt,
+    Go,
+    Agent(usize),
+}
+
+pub(crate) fn parse_slash(line: &str) -> Option<SlashCmd> {
+    match line.trim() {
+        "/prompt" | "/brief" => Some(SlashCmd::Prompt),
+        "/go" | "/despachar" | "/dispatch" => Some(SlashCmd::Go),
+        other => {
+            let name = other.strip_prefix('/')?;
+            AGENTS
+                .iter()
+                .position(|(key, _)| *key == name)
+                .map(SlashCmd::Agent)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -119,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn replace_instructions_swaps_section_content() {
+    fn replace_instructions_swaps_section_and_keeps_original() {
         let mut lines: Vec<String> = ["## Tarefas", "- x", "", "## Instruções", "", "ideia crua"]
             .iter()
             .map(|s| s.to_string())
@@ -127,8 +187,40 @@ mod tests {
         replace_instructions(&mut lines, "brief\nfinal");
         assert_eq!(
             lines,
-            vec!["## Tarefas", "- x", "", "## Instruções", "", "brief", "final"]
+            vec![
+                "## Tarefas",
+                "- x",
+                "",
+                "## Instruções",
+                "",
+                "brief",
+                "final",
+                "",
+                // tr() resolve para o inglês fora do binário prumo.
+                tr("## Original draft", "## Rascunho original"),
+                "",
+                "ideia crua"
+            ]
         );
+    }
+
+    #[test]
+    fn instructions_empty_detects_blank_section() {
+        let lines = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(instructions_empty(&lines(&["## Instruções", "", "  "])));
+        assert!(!instructions_empty(&lines(&["## Instruções", "", "ideia"])));
+        assert!(!instructions_empty(&lines(&["texto livre sem seção"])));
+    }
+
+    #[test]
+    fn parse_slash_recognizes_commands_only_as_whole_lines() {
+        assert!(matches!(parse_slash("/prompt"), Some(SlashCmd::Prompt)));
+        assert!(matches!(parse_slash("  /go  "), Some(SlashCmd::Go)));
+        assert!(matches!(parse_slash("/codex"), Some(SlashCmd::Agent(3))));
+        assert!(matches!(parse_slash("/opus"), Some(SlashCmd::Agent(1))));
+        assert!(parse_slash("/prompt gerar").is_none());
+        assert!(parse_slash("usar /prompt").is_none());
+        assert!(parse_slash("/desconhecido").is_none());
     }
 
     #[test]
@@ -247,6 +339,7 @@ impl App {
                     tasks: abs,
                     mixed,
                     busy: false,
+                    briefed: false,
                 });
                 self.mode = Mode::Note;
             }
@@ -261,9 +354,65 @@ impl App {
         }
     }
 
+    /// Enter numa linha que é um comando `/x` do draft: consome a linha e
+    /// executa. Retorna false quando a linha não é comando (Enter normal).
+    pub fn dispatch_try_slash_command(&mut self) -> bool {
+        let Some(panel) = self.note_panel.as_mut() else {
+            return false;
+        };
+        let Some(cmd) = parse_slash(&panel.lines[panel.row]) else {
+            return false;
+        };
+        // Consome a linha do comando antes de executar.
+        if panel.lines.len() == 1 {
+            panel.lines[0].clear();
+        } else {
+            panel.lines.remove(panel.row);
+            panel.row = panel.row.min(panel.lines.len() - 1);
+        }
+        panel.col = 0;
+        panel.dirty = true;
+        match cmd {
+            SlashCmd::Prompt => self.dispatch_improve_prompt(),
+            SlashCmd::Go => self.dispatch_send(),
+            SlashCmd::Agent(i) => {
+                if let Some(ctx) = self.dispatch_ctx.as_mut() {
+                    ctx.agent = i;
+                    let label = AGENTS[i].1;
+                    self.flash(format!(
+                        "{label} {}",
+                        tr("selected", "selecionado")
+                    ));
+                }
+            }
+        }
+        true
+    }
+
     /// `Ctrl-D` no draft: salva o buffer e dispara o agente via herdr no
     /// diretório do projeto. Em erro o draft fica aberto (nada se perde).
     pub fn dispatch_send(&mut self) {
+        let Some(ctx) = self.dispatch_ctx.as_ref() else {
+            return;
+        };
+        if ctx.busy {
+            self.flash(tr(
+                "⧗ wait for the brief before dispatching",
+                "⧗ aguarde o brief antes de despachar",
+            ));
+            return;
+        }
+        if self
+            .note_panel
+            .as_ref()
+            .is_some_and(|p| instructions_empty(&p.lines))
+        {
+            self.flash(tr(
+                "✎ write instructions (or /prompt) before dispatching",
+                "✎ escreva instruções (ou /prompt) antes de despachar",
+            ));
+            return;
+        }
         let Some(ctx) = self.dispatch_ctx.as_ref() else {
             return;
         };
@@ -515,10 +664,20 @@ impl App {
             Ok(brief) => {
                 if let Some(panel) = self.note_panel.as_mut() {
                     replace_instructions(&mut panel.lines, &brief);
-                    panel.row = panel.lines.len() - 1;
+                    // Cursor no topo do brief (não no fim do rascunho antigo):
+                    // o próximo passo é revisar, não continuar escrevendo.
+                    panel.row = panel
+                        .lines
+                        .iter()
+                        .position(|l| instructions_header(l))
+                        .map(|i| (i + 2).min(panel.lines.len() - 1))
+                        .unwrap_or(0);
                     panel.col = 0;
                     panel.dirty = true;
-                    self.flash(tr("prompt improved", "prompt melhorado"));
+                    if let Some(ctx) = self.dispatch_ctx.as_mut() {
+                        ctx.briefed = true;
+                    }
+                    self.flash(tr("✔ brief ready — review and Ctrl-D", "✔ brief pronto — revise e Ctrl-D"));
                 }
             }
             Err(e) => self.flash(format!("brief-builder: {e}")),

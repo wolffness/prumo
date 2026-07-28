@@ -152,10 +152,17 @@ fn advisor_shell() -> Section {
                 tr("dispatch draft (selection)", "draft de despacho (seleção)"),
             ),
             (
-                "  in draft: Tab · Ctrl-P · Ctrl-D",
+                "  in draft: /prompt · /go · /codex",
                 tr(
-                    "cycle agent · improve prompt · dispatch",
-                    "ciclar agente · melhorar prompt · despachar",
+                    "make a brief · dispatch · switch agent (line + Enter)",
+                    "gerar brief · despachar · trocar agente (linha + Enter)",
+                ),
+            ),
+            (
+                "  shortcuts: Ctrl-P · Ctrl-D · Tab",
+                tr(
+                    "brief · dispatch · cycle agent",
+                    "brief · despachar · ciclar agente",
                 ),
             ),
             (

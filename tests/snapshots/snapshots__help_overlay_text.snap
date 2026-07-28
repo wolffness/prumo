@@ -35,14 +35,14 @@ expression: buffer_to_text(&buf)
      │                                                I                 GitHub issues view    │     
      │                                                  in view: g      AI rank by goal       │     
      │                                                D                 dispatch draft (select│     
-     │                                                  in draft: Tab · Ctrl-P · Ctrl-Dcycle a│     
+     │                                                  in draft: /prompt · /go · /codexmake a│     
+     │                                                  shortcuts: Ctrl-P · Ctrl-D · Tabbrief │     
      │                                                ! advisor on/off +penable/disable per pr│     
      │                                                ! advisor link    link a GitHub repo    │     
      │                                                ! advisor goal +p set the ranking goal  │     
      │                                                / then ! cmd      run a shell command   │     
      │────────────────────────────────────────────────────────────────────────────────────────│     
      │  FORMAT                                                                                │     
-     │    (A)               priority A-Z              due:YYYY-MM-DD    due date              │     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
  HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo5
