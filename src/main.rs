@@ -448,6 +448,9 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Issues => handle_issues(app, key),
         Mode::Review => handle_review(app, key),
         Mode::NoteSearchResults => handle_note_search_results(app, key),
+        Mode::Projects => handle_projects(app, key),
+        Mode::Journal => handle_journal(app, key),
+        Mode::PromptJournalEntry => handle_prompt(app, key),
         Mode::ConfirmDispatch => match key.code {
             KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_dispatch_done(),
             KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.dismiss_dispatch_done(),
@@ -487,6 +490,33 @@ fn handle_review(app: &mut App, key: KeyEvent) {
         KeyCode::Enter => app.review_enter_project(),
         KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('R') | KeyCode::Char('q') => {
             app.exit_review_view();
+        }
+        _ => {}
+    }
+}
+
+/// Visão Projects: todo `+projeto` conhecido, `x` arquiva/desarquiva.
+fn handle_projects(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.project_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.project_step(false),
+        KeyCode::Enter => app.project_apply_filter(),
+        KeyCode::Char('x') => app.toggle_project_archived(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('P') | KeyCode::Char('q') => {
+            app.exit_projects_view();
+        }
+        _ => {}
+    }
+}
+
+/// Journal do projeto em foco: `n` abre o prompt de nova entrada.
+fn handle_journal(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.journal_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.journal_step(false),
+        KeyCode::Char('n') => app.begin_journal_entry(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('J') | KeyCode::Char('q') => {
+            app.exit_journal_view();
         }
         _ => {}
     }
@@ -1295,19 +1325,28 @@ fn handle_prompt(app: &mut App, key: KeyEvent) {
 
     match key.code {
         KeyCode::Esc => {
-            app.mode = Mode::Normal;
+            app.mode = if app.mode == Mode::PromptJournalEntry {
+                Mode::Journal
+            } else {
+                Mode::Normal
+            };
             app.draft_clear();
         }
         KeyCode::Enter => {
             let prev_mode = app.mode;
             let value = app.draft.text().to_string();
             app.draft_clear();
-            app.mode = Mode::Normal;
+            app.mode = if prev_mode == Mode::PromptJournalEntry {
+                Mode::Journal
+            } else {
+                Mode::Normal
+            };
             match prev_mode {
                 Mode::PromptProject => app.add_project_to_current(&value),
                 Mode::PromptContext => app.toggle_context_on_current(&value),
                 Mode::PromptSaveFilter => app.save_current_filter_as(&value),
                 Mode::PromptAttach => app.attach_file_to_current(&value),
+                Mode::PromptJournalEntry => app.commit_journal_entry(&value),
                 _ => {}
             }
         }
@@ -1355,6 +1394,8 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('a') => Action::ToggleArchiveView,
         KeyCode::Char('I') => Action::ToggleIssuesView,
         KeyCode::Char('R') => Action::OpenReviewView,
+        KeyCode::Char('P') => Action::OpenProjectsView,
+        KeyCode::Char('J') => Action::OpenJournalView,
         KeyCode::Char('l') => Action::GoList,
         KeyCode::Char('e') => Action::BeginEdit,
         KeyCode::Char('i') => Action::BeginEditInsert,
@@ -1578,6 +1619,8 @@ fn apply_action(app: &mut App, action: Action) {
         }
         Action::ToggleIssuesView => app.enter_issues_view(),
         Action::OpenReviewView => app.enter_review_view(),
+        Action::OpenProjectsView => app.enter_projects_view(),
+        Action::OpenJournalView => app.enter_journal_view(),
         Action::OpenDispatchDraft => app.open_dispatch_draft(),
         Action::ArmZ => app.chord.arm('z'),
         Action::ArchiveCompleted => {

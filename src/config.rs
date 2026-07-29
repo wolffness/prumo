@@ -76,6 +76,10 @@ pub struct Config {
     /// `hoje - review_last[projeto] >= review_every_days` (ou sempre devido
     /// se nunca revisado). Serializado como `review_every_days = <N>`.
     pub review_every_days: Option<u32>,
+    /// `+projeto`s arquivados explicitamente (visão Projects, tecla `P`,
+    /// `x` arquiva/desarquiva) — sobrevivem sem tarefa aberta até serem
+    /// desarquivados. Serializado como `project_archived.<nome> = on`.
+    pub project_archived: Vec<String>,
 }
 
 impl Config {
@@ -240,6 +244,26 @@ fn parse(s: &str) -> Config {
                 }
             }
             _ if k
+                .strip_prefix("project_archived.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k
+                    .strip_prefix("project_archived.")
+                    .expect("checked above")
+                    .trim()
+                    .to_string();
+                // Só entra no set quando arquivado; `off`/falsy desarquiva.
+                let on = parse_bool(v).unwrap_or(false);
+                let pos = c.project_archived.iter().position(|p| p == &name);
+                match (on, pos) {
+                    (true, None) => c.project_archived.push(name),
+                    (false, Some(i)) => {
+                        c.project_archived.remove(i);
+                    }
+                    _ => {}
+                }
+            }
+            _ if k
                 .strip_prefix("advisor_link.")
                 .is_some_and(|n| !n.trim().is_empty()) =>
             {
@@ -353,6 +377,9 @@ fn serialize(c: &Config) -> String {
     for (project, date) in &c.review_last {
         let _ = writeln!(out, "review_last.{project} = {date}");
     }
+    for project in &c.project_archived {
+        let _ = writeln!(out, "project_archived.{project} = on");
+    }
     out
 }
 
@@ -409,6 +436,7 @@ mod tests {
             advisor_goals: vec![("prumo".into(), "lançar o app v2".into())],
             review_last: vec![("prumo".into(), "2026-07-15".into())],
             review_every_days: Some(14),
+            project_archived: vec!["antigo".into()],
         };
 
         let s = serialize(&c);
@@ -617,6 +645,7 @@ mod tests {
             advisor_goals: vec![("errand".into(), "zerar a caixa de entrada".into())],
             review_last: vec![("errand".into(), "2026-07-01".into())],
             review_every_days: None,
+            project_archived: vec![],
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

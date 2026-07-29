@@ -425,6 +425,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, app: &App) {
         Mode::PromptContext => ("@", " TOGGLE CONTEXT "),
         Mode::PromptSaveFilter => ("✦", " SAVE FILTER AS "),
         Mode::PromptAttach => ("▣", " ATTACH FILE "),
+        Mode::PromptJournalEntry => ("✎", " NEW JOURNAL ENTRY "),
         _ => return,
     };
     let block = Block::default()

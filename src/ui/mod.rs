@@ -15,10 +15,12 @@ pub mod header;
 pub mod help;
 pub mod hyperlinks;
 pub mod issues;
+pub mod journal;
 pub mod list;
 pub mod logo;
 pub mod note_panel;
 pub mod note_search;
+pub mod projects;
 pub mod review;
 pub mod settings;
 pub mod share;
@@ -147,6 +149,14 @@ pub fn draw(frame: &mut Frame, app: &App) {
             frame.render_widget(Clear, body_area);
             note_search::render(frame, body_area, app);
         }
+        Mode::Projects => {
+            frame.render_widget(Clear, body_area);
+            projects::render(frame, body_area, app);
+        }
+        Mode::Journal => {
+            frame.render_widget(Clear, body_area);
+            journal::render(frame, body_area, app);
+        }
         Mode::PromptAttach => {
             // Wider and taller than the tag prompts: file paths are long and
             // the box carries a drop-hint footer.
@@ -155,7 +165,10 @@ pub fn draw(frame: &mut Frame, app: &App) {
             frame.render_widget(Clear, r);
             dialog::render_prompt(frame, r, app);
         }
-        Mode::PromptProject | Mode::PromptContext | Mode::PromptSaveFilter => {
+        Mode::PromptProject
+        | Mode::PromptContext
+        | Mode::PromptSaveFilter
+        | Mode::PromptJournalEntry => {
             let w: u16 = PROMPT_MAX_W.min(area.width.saturating_sub(4));
             let r = centered_in(area, w, PROMPT_H);
             frame.render_widget(Clear, r);

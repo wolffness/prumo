@@ -131,6 +131,20 @@ fn view() -> Section {
             ("l", tr("list view", "visão de lista")),
             ("a", tr("archive view", "visão de arquivo")),
             ("R", tr("review projects", "revisar projetos")),
+            (
+                "P",
+                tr(
+                    "all projects · x archive/unarchive",
+                    "todos os projetos · x arquivar/desarquivar",
+                ),
+            ),
+            (
+                "Shift-J",
+                tr(
+                    "project journal · n new entry",
+                    "journal do projeto · n nova entrada",
+                ),
+            ),
             ("A", tr("archive completed", "arquivar concluídas")),
             ("H", tr("show done in list", "mostrar concluídas na lista")),
             ("F", tr("show future in list", "mostrar futuras na lista")),

@@ -19,12 +19,14 @@ mod dispatch_draft;
 mod draft;
 mod draft_overlay;
 mod flash;
+mod journal;
 mod mutations;
 mod note_search;
 pub mod note_panel;
 pub mod palette;
 mod picker;
 mod prefs;
+pub mod projects;
 pub mod review;
 mod saved;
 mod selection;
@@ -47,10 +49,12 @@ pub use draft_overlay::{
     format_rec_value, recurrence_next_preview,
 };
 pub use flash::Flash;
+pub use journal::JournalEntry;
 pub use note_panel::NotePanel;
 pub use palette::CommandPaletteState;
 pub use prefs::{Layout, Prefs};
 pub use note_search::NoteSearchHit;
+pub use projects::ProjectRow;
 pub use review::{ReviewRow, ReviewStatus};
 pub use selection::Selection;
 pub use types::{
@@ -164,6 +168,16 @@ pub struct App {
     pub review_last: Vec<(String, String)>,
     /// Cadência global da Review em dias, lida do config (`None` = default).
     pub review_every_days: Option<u32>,
+    /// `+projeto`s arquivados explicitamente (visão Projects, `P`), lidos
+    /// do config. Ver [`projects`](crate::app::projects).
+    pub project_archived: Vec<String>,
+    pub(crate) project_cache: Vec<ProjectRow>,
+    pub(crate) project_cursor: usize,
+    /// Estado da visão Journal (`Shift+J`) — ver
+    /// [`journal`](crate::app::journal).
+    pub(crate) journal_project: Option<String>,
+    pub(crate) journal_entries: Vec<JournalEntry>,
+    pub(crate) journal_cursor: usize,
     /// Cache da sessão da lista de projetos da visão Review.
     pub(crate) review_cache: Vec<ReviewRow>,
     pub(crate) review_cursor: usize,
@@ -292,6 +306,7 @@ impl App {
         let advisor_goals = cfg.advisor_goals.clone();
         let review_last = cfg.review_last.clone();
         let review_every_days = cfg.review_every_days;
+        let project_archived = cfg.project_archived.clone();
         let mut app = Self {
             store,
             view: View::List,
@@ -317,6 +332,12 @@ impl App {
             advisor_goals,
             review_last,
             review_every_days,
+            project_archived,
+            project_cache: Vec::new(),
+            project_cursor: 0,
+            journal_project: None,
+            journal_entries: Vec::new(),
+            journal_cursor: 0,
             review_cache: Vec::new(),
             review_cursor: 0,
             reviewing_project: None,
@@ -946,6 +967,7 @@ impl App {
         self.advisor_goals = new_cfg.advisor_goals.clone();
         self.review_last = new_cfg.review_last.clone();
         self.review_every_days = new_cfg.review_every_days;
+        self.project_archived = new_cfg.project_archived.clone();
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
     }

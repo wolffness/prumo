@@ -13,23 +13,25 @@ expression: buffer_to_text(&buf)
    +p│                                                l                 list view             │     
    +t│  EDITING                                       a                 archive view          │     
      │    n                 new task                  R                 review projects       │     
- CONT│    e                 edit line (normal)        A                 archive completed     │     
-   @e│    i                 edit line (insert)        H                 show done in list     │     
-   @h│    r                 reschedule task           F                 show future in list   │     
-   @l│    x                 complete → archive        [ / ]             toggle filter / detail│     
-   @p│    dd                delete task               T                 cycle theme           │     
-     │    p                 cycle priority A→B→C→·    zd                cycle density         │     
-     │    c                 add/remove context        L                 toggle line numbers   │     
-     │    +                 add project                                                       │     
-     │    yy                copy line to clipboard  NOTES & FILES                             │     
-     │    yb                copy body only            m / N             note panel (in-app)   │     
-     │    u                 undo                        i / Esc         panel: write / back·cl│     
-     │                                                  Shift+arrows    panel: select text    │     
-     │  SYSTEM                                          Del/Backspace   panel: delete selectio│     
-     │    : / Ctrl-P        command palette             Space / n       panel: toggle / new su│     
-     │    s                 share capture QR            Ctrl-S / o      panel: save / $EDITOR │     
-     │    ? / ,             help / settings           o / O             open / create note in │     
-     │    q                 quit                      t                 attach file (drag or p│     
+ CONT│    e                 edit line (normal)        P                 all projects · x archi│     
+   @e│    i                 edit line (insert)        Shift-J           project journal · n ne│     
+   @h│    r                 reschedule task           A                 archive completed     │     
+   @l│    x                 complete → archive        H                 show done in list     │     
+   @p│    dd                delete task               F                 show future in list   │     
+     │    p                 cycle priority A→B→C→·    [ / ]             toggle filter / detail│     
+     │    c                 add/remove context        T                 cycle theme           │     
+     │    +                 add project               zd                cycle density         │     
+     │    yy                copy line to clipboard    L                 toggle line numbers   │     
+     │    yb                copy body only                                                    │     
+     │    u                 undo                    NOTES & FILES                             │     
+     │                                                m / N             note panel (in-app)   │     
+     │  SYSTEM                                          i / Esc         panel: write / back·cl│     
+     │    : / Ctrl-P        command palette             Shift+arrows    panel: select text    │     
+     │    s                 share capture QR            Del/Backspace   panel: delete selectio│     
+     │    ? / ,             help / settings             Space / n       panel: toggle / new su│     
+     │    q                 quit                        Ctrl-S / o      panel: save / $EDITOR │     
+     │                                                o / O             open / create note in │     
+     │                                                t                 attach file (drag or p│     
      │                                                Enter             open attachments      │     
      │                                                                                        │     
      │                                              ADVISOR & SHELL                           │     
@@ -40,8 +42,6 @@ expression: buffer_to_text(&buf)
      │                                                  shortcuts: Ctrl-P · Ctrl-D · Tab brief│     
      │                                                ! advisor on/off +p enable/disable per p│     
      │                                                ! advisor link    link a GitHub repo    │     
-     │                                                ! advisor goal +p set the ranking goal  │     
-     │                                                / then ! cmd      run a shell command   │     
      │ j/k scroll ↓  · ? close                                                                │     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
