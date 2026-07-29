@@ -1096,23 +1096,44 @@ impl App {
     /// Importa a issue selecionada para o todo.txt como tarefa local, marcada
     /// com o token `gh:owner/repo#N` para rastrear a origem.
     pub fn import_selected_issue(&mut self) {
-        let repo = match self.issues_repo.clone() {
-            Some(r) => r,
-            None => return,
-        };
+        if let Some((_abs, number)) = self.import_selected_issue_inner() {
+            self.flash(format!(
+                "{} #{number}",
+                crate::brand::tr("imported issue", "issue importada"),
+            ));
+        }
+    }
+
+    /// Núcleo compartilhado do import: monta a linha e grava no store.
+    /// Retorna o índice absoluto da tarefa nova (em `store.tasks()`) e o
+    /// número da issue, ou `None` (e já flasha o motivo) se não deu certo.
+    fn import_selected_issue_inner(&mut self) -> Option<(usize, u64)> {
+        let repo = self.issues_repo.clone()?;
         let project = self.issues_project.clone();
-        let Some(row) = self.issues.get(self.issues_cursor).cloned() else {
-            return;
-        };
+        let row = self.issues.get(self.issues_cursor).cloned()?;
         let line = issue_import_line(&row, project.as_deref(), &repo);
         match self.store.add_line(&line) {
-            crate::core::AddOutcome::Added { .. } => self.flash(format!(
-                "{} #{}",
-                crate::brand::tr("imported issue", "issue importada"),
-                row.number
-            )),
-            _ => self.flash(crate::brand::tr("import failed", "falha ao importar")),
+            crate::core::AddOutcome::Added { abs } => Some((abs, row.number)),
+            _ => {
+                self.flash(crate::brand::tr("import failed", "falha ao importar"));
+                None
+            }
         }
+    }
+
+    /// `Shift+D` na visão Issues: importa a issue sob o cursor pro todo.txt
+    /// e já abre o Draft de Despacho para ela, compondo `import_selected_issue`
+    /// e `open_dispatch_draft` (ambos já existentes) sem tela nova — fecha o
+    /// loop advisor→despacho (a issue #1 do ranking já fica no topo do
+    /// cursor depois de `g`).
+    pub fn dispatch_selected_issue(&mut self) {
+        let Some((abs, _number)) = self.import_selected_issue_inner() else {
+            return;
+        };
+        self.exit_issues_view();
+        self.selection.clear();
+        self.selection.toggle(abs);
+        self.open_dispatch_draft();
     }
 
     /// Reconcile against disk and drain the inbox. Returns `true` when it is

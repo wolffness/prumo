@@ -460,6 +460,60 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_selected_issue_imports_and_opens_draft_for_it() {
+        use crate::advisor::github::IssueRow;
+        use crate::app::{Mode, View};
+
+        let mut app = build_app("existing task +other\n");
+        let dir = app.file_path.parent().unwrap().to_path_buf();
+        app.set_notes_dir(dir);
+
+        app.issues = vec![IssueRow {
+            number: 7,
+            title: "Corrigir bug do parser".into(),
+            url: String::new(),
+            tier: None,
+            why: None,
+        }];
+        app.issues_repo = Some("wolffness/prumo".into());
+        app.issues_project = Some("prumo".into());
+        app.issues_cursor = 0;
+        app.view = View::Issues;
+        app.mode = Mode::Issues;
+
+        app.dispatch_selected_issue();
+
+        // Importou a issue como tarefa nova (não substituiu a existente).
+        assert_eq!(app.tasks().len(), 2);
+        let imported = app
+            .tasks()
+            .iter()
+            .find(|t| t.raw.contains("gh:wolffness/prumo#7"))
+            .expect("issue importada");
+        assert!(imported.raw.contains("Corrigir bug do parser"));
+        assert!(imported.raw.contains("+prumo"));
+
+        // Saiu da visão Issues e abriu o draft já para essa tarefa.
+        assert_eq!(app.view(), View::List);
+        assert_eq!(app.mode, Mode::Note);
+        assert!(app.dispatch_ctx.is_some());
+        let panel = app.note_panel.as_ref().expect("draft aberto");
+        let body = panel.lines.join("\n");
+        assert!(body.contains("Corrigir bug do parser"), "{body}");
+    }
+
+    #[test]
+    fn dispatch_selected_issue_noop_without_issues_repo() {
+        use crate::app::{Mode, View};
+        let mut app = build_app("a\n");
+        app.view = View::Issues;
+        app.mode = Mode::Issues;
+        app.dispatch_selected_issue();
+        assert_eq!(app.tasks().len(), 1, "nada importado sem repo em foco");
+        assert_eq!(app.view(), View::Issues, "não deve ter saído da visão");
+    }
+
+    #[test]
     fn issue_import_line_builds_todo_with_gh_token() {
         use crate::advisor::github::IssueRow;
         let row = IssueRow {

@@ -470,6 +470,7 @@ fn handle_issues(app: &mut App, key: KeyEvent) {
         KeyCode::Char('g') => app.rank_current_issues(None),
         KeyCode::Enter => app.open_selected_issue(),
         KeyCode::Char('+') => app.import_selected_issue(),
+        KeyCode::Char('D') => app.dispatch_selected_issue(),
         KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('I') | KeyCode::Char('q') => {
             app.exit_issues_view();
         }

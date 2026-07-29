@@ -145,8 +145,11 @@ fn advisor_shell() -> Section {
         vec![
             ("I", tr("GitHub issues view", "visão de issues do GitHub")),
             (
-                "  in view: g",
-                tr("AI rank by goal", "ranquear por objetivo (IA)"),
+                "  in view: g · D",
+                tr(
+                    "rank by goal (AI) · dispatch #1",
+                    "ranquear por objetivo (IA) · despachar #1",
+                ),
             ),
             (
                 "D",

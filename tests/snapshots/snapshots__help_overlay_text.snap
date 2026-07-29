@@ -34,7 +34,7 @@ expression: buffer_to_text(&buf)
      │                                                                                        │     
      │                                              ADVISOR & SHELL                           │     
      │                                                I                 GitHub issues view    │     
-     │                                                  in view: g      AI rank by goal       │     
+     │                                                  in view: g · D  rank by goal (AI) · di│     
      │                                                D                 dispatch draft (select│     
      │                                                  in draft: /prompt · /go · /codexmake a│     
      │                                                  shortcuts: Ctrl-P · Ctrl-D · Tabbrief │     
