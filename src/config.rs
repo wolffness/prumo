@@ -69,6 +69,13 @@ pub struct Config {
     /// Objetivo salvo por projeto — norte para o ranking de issues por
     /// importância. Serializado como `advisor_goal.<nome> = <texto>`.
     pub advisor_goals: Vec<(String, String)>,
+    /// Data (`YYYY-MM-DD`) da última revisão de cada `+projeto` (visão
+    /// Review, tecla `R`). Serializado como `review_last.<nome> = <data>`.
+    pub review_last: Vec<(String, String)>,
+    /// Cadência global da Review em dias — um projeto fica "devido" quando
+    /// `hoje - review_last[projeto] >= review_every_days` (ou sempre devido
+    /// se nunca revisado). Serializado como `review_every_days = <N>`.
+    pub review_every_days: Option<u32>,
 }
 
 impl Config {
@@ -246,6 +253,18 @@ fn parse(s: &str) -> Config {
                     None => c.advisor_links.push((name.to_string(), repo)),
                 }
             }
+            "review_every_days" => c.review_every_days = v.parse().ok(),
+            _ if k
+                .strip_prefix("review_last.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k.strip_prefix("review_last.").expect("checked above").trim();
+                let date = v.trim().to_string();
+                match c.review_last.iter_mut().find(|(n, _)| n.as_str() == name) {
+                    Some((_, d)) => *d = date,
+                    None => c.review_last.push((name.to_string(), date)),
+                }
+            }
             _ if k
                 .strip_prefix("filter.")
                 .is_some_and(|n| !n.trim().is_empty()) =>
@@ -328,6 +347,12 @@ fn serialize(c: &Config) -> String {
     for (project, goal) in &c.advisor_goals {
         let _ = writeln!(out, "advisor_goal.{project} = {goal}");
     }
+    if let Some(v) = c.review_every_days {
+        let _ = writeln!(out, "review_every_days = {v}");
+    }
+    for (project, date) in &c.review_last {
+        let _ = writeln!(out, "review_last.{project} = {date}");
+    }
     out
 }
 
@@ -382,6 +407,8 @@ mod tests {
             ],
             advisor_projects: vec!["prumo".into()],
             advisor_goals: vec![("prumo".into(), "lançar o app v2".into())],
+            review_last: vec![("prumo".into(), "2026-07-15".into())],
+            review_every_days: Some(14),
         };
 
         let s = serialize(&c);
@@ -588,6 +615,8 @@ mod tests {
             advisor_links: vec![("errand".into(), "octocat/errand".into())],
             advisor_projects: vec!["errand".into()],
             advisor_goals: vec![("errand".into(), "zerar a caixa de entrada".into())],
+            review_last: vec![("errand".into(), "2026-07-01".into())],
+            review_every_days: None,
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

@@ -22,6 +22,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Issues => "ISSUES".into(),
         Mode::Visual => "VISUAL".into(),
         Mode::ConfirmDispatch => tr("CONFIRM", "CONFIRMAR").into(),
+        Mode::Review => tr("REVIEW", "REVISÃO").into(),
+        Mode::ConfirmReview => tr("CONFIRM", "CONFIRMAR").into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),
         Mode::PromptProject => tr("PROJECT", "PROJETO").into(),
@@ -45,6 +47,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     };
     if matches!(app.view, View::Archive) {
         mode_label = tr("ARCHIVE", "ARQUIVO").into();
+    }
+    if let Some(project) = app.reviewing_project() {
+        mode_label = format!("{} +{project}", tr("REVIEW", "REVISÃO")).into();
     }
     if let Some(f) = app.flash_active() {
         mode_label = format!("{mode_label} · {f}").into();
@@ -107,6 +112,18 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::ConfirmDispatch => tr(
             "s/Enter complete tasks · n/Esc keep",
             "s/Enter completar tarefas · n/Esc manter",
+        ),
+        Mode::Review => tr(
+            "j/k move · Enter open project · Esc back",
+            "j/k mover · Enter abrir projeto · Esc voltar",
+        ),
+        Mode::ConfirmReview => tr(
+            "s/Enter mark reviewed · n/Esc keep last review",
+            "s/Enter marcar revisado · n/Esc manter revisão anterior",
+        ),
+        Mode::Normal if app.reviewing_project().is_some() => tr(
+            "j/k · x done · Esc finish review",
+            "j/k · x concluir · Esc terminar revisão",
         ),
         _ => tr(
             "j/k · n new · r reschedule · x done · / search · ? help · u undo · q quit",

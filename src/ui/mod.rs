@@ -18,6 +18,7 @@ pub mod issues;
 pub mod list;
 pub mod logo;
 pub mod note_panel;
+pub mod review;
 pub mod settings;
 pub mod share;
 pub mod status;
@@ -98,6 +99,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::List => list::render(frame, center_area, app),
         View::Archive => archive::render(frame, center_area, app),
         View::Issues => issues::render(frame, center_area, app),
+        View::Review => review::render(frame, center_area, app),
     }
     if let Some(ra) = right_area {
         detail::render(frame, ra, app);

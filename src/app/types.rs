@@ -59,6 +59,12 @@ pub enum Mode {
     /// Confirmação pós-despacho: o agente concluiu; `s`/`Enter` completa as
     /// tarefas do despacho, `n`/`Esc` mantém como estão.
     ConfirmDispatch,
+    /// Visão Review (`R`): lista de `+projeto`s devidos para revisão.
+    /// `j`/`k` move, `Enter` entra no projeto, `Esc`/`q` volta à lista.
+    Review,
+    /// Confirmação ao sair da revisão de um projeto: `s`/`Enter` marca como
+    /// revisado hoje, `n`/`Esc` mantém a data anterior.
+    ConfirmReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +73,8 @@ pub enum View {
     Archive,
     /// Issues abertas do GitHub do repo vinculado ao projeto em foco.
     Issues,
+    /// Lista de `+projeto`s devidos para revisão (`R`).
+    Review,
 }
 
 impl View {
@@ -77,6 +85,7 @@ impl View {
             View::List => 0,
             View::Archive => 1,
             View::Issues => 2,
+            View::Review => 3,
         }
     }
 }

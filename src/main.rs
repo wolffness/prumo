@@ -446,9 +446,15 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Issues => handle_issues(app, key),
+        Mode::Review => handle_review(app, key),
         Mode::ConfirmDispatch => match key.code {
             KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_dispatch_done(),
             KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.dismiss_dispatch_done(),
+            _ => {}
+        },
+        Mode::ConfirmReview => match key.code {
+            KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_review_mark(),
+            KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.confirm_review_skip(),
             _ => {}
         },
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
@@ -466,6 +472,19 @@ fn handle_issues(app: &mut App, key: KeyEvent) {
         KeyCode::Char('+') => app.import_selected_issue(),
         KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('I') | KeyCode::Char('q') => {
             app.exit_issues_view();
+        }
+        _ => {}
+    }
+}
+
+/// Visão Review: lista de `+projeto`s por atraso de revisão.
+fn handle_review(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.review_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.review_step(false),
+        KeyCode::Enter => app.review_enter_project(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('R') | KeyCode::Char('q') => {
+            app.exit_review_view();
         }
         _ => {}
     }
@@ -1316,6 +1335,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('r') => Action::Reschedule,
         KeyCode::Char('a') => Action::ToggleArchiveView,
         KeyCode::Char('I') => Action::ToggleIssuesView,
+        KeyCode::Char('R') => Action::OpenReviewView,
         KeyCode::Char('l') => Action::GoList,
         KeyCode::Char('e') => Action::BeginEdit,
         KeyCode::Char('i') => Action::BeginEditInsert,
@@ -1535,6 +1555,7 @@ fn apply_action(app: &mut App, action: Action) {
             app.set_view(next);
         }
         Action::ToggleIssuesView => app.enter_issues_view(),
+        Action::OpenReviewView => app.enter_review_view(),
         Action::OpenDispatchDraft => app.open_dispatch_draft(),
         Action::ArmZ => app.chord.arm('z'),
         Action::ArchiveCompleted => {
@@ -1619,6 +1640,13 @@ fn apply_action(app: &mut App, action: Action) {
             }
         }
         Action::EscapeStack => {
+            // Dentro da revisão de um projeto, o próprio filtro +projeto é
+            // da Review — Esc pergunta se marca revisado em vez de limpá-lo
+            // como faria o Esc normal (has_pc abaixo).
+            if app.reviewing_project().is_some() {
+                app.review_request_finish();
+                return;
+            }
             let has_pc = app.filter().project.is_some() || app.filter().context.is_some();
             let has_search = !app.filter().search.is_empty();
             if has_pc {

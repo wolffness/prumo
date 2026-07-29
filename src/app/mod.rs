@@ -24,6 +24,7 @@ pub mod note_panel;
 pub mod palette;
 mod picker;
 mod prefs;
+pub mod review;
 mod saved;
 mod selection;
 mod types;
@@ -48,6 +49,7 @@ pub use flash::Flash;
 pub use note_panel::NotePanel;
 pub use palette::CommandPaletteState;
 pub use prefs::{Layout, Prefs};
+pub use review::{ReviewRow, ReviewStatus};
 pub use selection::Selection;
 pub use types::{
     AUTOCOMPLETE_CAP, AddOutcome, Density, FLASH_TTL, Filter, LEADER_WINDOW, Mode, SavedFilter,
@@ -155,6 +157,17 @@ pub struct App {
     pub advisor_links: Vec<(String, String)>,
     /// Objetivo salvo por projeto, lido do config (norte do ranking `p`).
     pub advisor_goals: Vec<(String, String)>,
+    /// Data (`YYYY-MM-DD`) da última revisão de cada `+projeto`, lida do
+    /// config. Ver [`review`](crate::app::review).
+    pub review_last: Vec<(String, String)>,
+    /// Cadência global da Review em dias, lida do config (`None` = default).
+    pub review_every_days: Option<u32>,
+    /// Cache da sessão da lista de projetos da visão Review.
+    pub(crate) review_cache: Vec<ReviewRow>,
+    pub(crate) review_cursor: usize,
+    /// `Some(projeto)` enquanto a `View::List` está filtrada pela Review —
+    /// muda o footer/status e faz `Esc` perguntar antes de sair.
+    pub(crate) reviewing_project: Option<String>,
     /// Cache da sessão das issues da visão Issues, e de qual repo/projeto vieram.
     pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
     pub(crate) issues_repo: Option<String>,
@@ -266,6 +279,8 @@ impl App {
         let advisor_projects = cfg.advisor_projects.clone();
         let advisor_links = cfg.advisor_links.clone();
         let advisor_goals = cfg.advisor_goals.clone();
+        let review_last = cfg.review_last.clone();
+        let review_every_days = cfg.review_every_days;
         let mut app = Self {
             store,
             view: View::List,
@@ -289,6 +304,11 @@ impl App {
             advisor_projects,
             advisor_links,
             advisor_goals,
+            review_last,
+            review_every_days,
+            review_cache: Vec::new(),
+            review_cursor: 0,
+            reviewing_project: None,
             issues: Vec::new(),
             issues_repo: None,
             issues_project: None,
@@ -891,6 +911,8 @@ impl App {
         self.advisor_projects = new_cfg.advisor_projects.clone();
         self.advisor_links = new_cfg.advisor_links.clone();
         self.advisor_goals = new_cfg.advisor_goals.clone();
+        self.review_last = new_cfg.review_last.clone();
+        self.review_every_days = new_cfg.review_every_days;
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
     }
