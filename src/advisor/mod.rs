@@ -211,6 +211,10 @@ fn call_claude(model: &str, prompt: &str) -> Result<String> {
     let out = Command::new("claude")
         .args(["-p", prompt, "--model", model])
         .env_remove("ANTHROPIC_API_KEY")
+        // Called from inside the TUI's raw-mode terminal: without this the
+        // child inherits that same stdin and can hang waiting on input that
+        // will never arrive (the user is typing into Prumo, not into it).
+        .stdin(std::process::Stdio::null())
         .output()
         .map_err(|e| {
             anyhow!("could not run `claude` ({e}). Install Claude Code and run `/login` once.")

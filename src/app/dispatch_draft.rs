@@ -164,6 +164,55 @@ pub(crate) fn parse_slash(line: &str) -> Option<SlashCmd> {
     }
 }
 
+/// Timeout do brief-builder: um watchdog mata o processo se ele passar disso
+/// (rede lenta, um hang qualquer) — sem isso o footer fica em `⧗` pra
+/// sempre e o usuário não tem como saber que algo travou.
+const BRIEF_BUILDER_TIMEOUT_SECS: u64 = 90;
+
+/// Roda `claude -p <prompt>` no diretório do projeto e devolve o brief (ou
+/// o erro). Isolado de `dispatch_improve_prompt` pra ficar testável sem
+/// depender de `&mut App`.
+fn run_brief_builder(prompt: &str, dir: &std::path::Path) -> Result<String, String> {
+    use std::process::{Command, Stdio};
+
+    let child = Command::new("claude")
+        .args(["-p", prompt])
+        .current_dir(dir)
+        // Sem a env var o CLI usa o login OAuth da assinatura, não a API.
+        .env_remove("ANTHROPIC_API_KEY")
+        // Chamado de dentro do terminal em raw mode da TUI: sem isso o
+        // filho herda esse mesmo stdin e pode travar esperando entrada que
+        // nunca chega (o usuário está digitando no Prumo, não nele).
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("claude: {e}"))?;
+
+    let pid = child.id();
+    // Watchdog solto: se o processo já terminou sozinho, `kill` num pid
+    // morto só retorna erro (ignorado) — não precisa de sincronização pra
+    // cancelar a thread, ela mesma acaba assim que o sleep termina.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(BRIEF_BUILDER_TIMEOUT_SECS));
+        let _ = Command::new("kill").arg(pid.to_string()).status();
+    });
+
+    let out = child.wait_with_output().map_err(|e| format!("claude: {e}"))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    } else {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if err.is_empty() {
+            Err(format!(
+                "claude — sem resposta em {BRIEF_BUILDER_TIMEOUT_SECS}s (ou foi encerrado)"
+            ))
+        } else {
+            Err(err)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -618,20 +667,7 @@ impl App {
         );
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            // Sem a env var o CLI usa o login OAuth da assinatura, não a API.
-            let out = std::process::Command::new("claude")
-                .args(["-p", &prompt])
-                .current_dir(&dir)
-                .env_remove("ANTHROPIC_API_KEY")
-                .output();
-            let result = match out {
-                Ok(o) if o.status.success() => {
-                    Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-                }
-                Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
-                Err(e) => Err(format!("claude: {e}")),
-            };
-            let _ = tx.send(result);
+            let _ = tx.send(run_brief_builder(&prompt, &dir));
         });
         self.prompt_improver = Some(rx);
         if let Some(ctx) = self.dispatch_ctx.as_mut() {
