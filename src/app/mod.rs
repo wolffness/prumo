@@ -20,6 +20,7 @@ mod draft;
 mod draft_overlay;
 mod flash;
 mod mutations;
+mod note_search;
 pub mod note_panel;
 pub mod palette;
 mod picker;
@@ -49,6 +50,7 @@ pub use flash::Flash;
 pub use note_panel::NotePanel;
 pub use palette::CommandPaletteState;
 pub use prefs::{Layout, Prefs};
+pub use note_search::NoteSearchHit;
 pub use review::{ReviewRow, ReviewStatus};
 pub use selection::Selection;
 pub use types::{
@@ -168,6 +170,11 @@ pub struct App {
     /// `Some(projeto)` enquanto a `View::List` está filtrada pela Review —
     /// muda o footer/status e faz `Esc` perguntar antes de sair.
     pub(crate) reviewing_project: Option<String>,
+    /// Última query de busca em notas (`?query` na busca `/`) e seus
+    /// resultados — ver [`note_search`](crate::app::note_search).
+    pub(crate) note_search_query: String,
+    pub(crate) note_search_results: Vec<NoteSearchHit>,
+    pub(crate) note_search_cursor: usize,
     /// Cache da sessão das issues da visão Issues, e de qual repo/projeto vieram.
     pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
     pub(crate) issues_repo: Option<String>,
@@ -309,6 +316,9 @@ impl App {
             review_cache: Vec::new(),
             review_cursor: 0,
             reviewing_project: None,
+            note_search_query: String::new(),
+            note_search_results: Vec::new(),
+            note_search_cursor: 0,
             issues: Vec::new(),
             issues_repo: None,
             issues_project: None,
@@ -765,9 +775,16 @@ impl App {
         self.draft.text().trim_start().starts_with('!')
     }
 
-    /// Trata o Enter no modo Search. Se o draft é `! <cmd>`, enfileira o comando
-    /// de shell e volta ao Normal; senão confirma a busca. Retorna `true` se um
-    /// comando foi enfileirado.
+    /// `true` se o texto do campo de busca é uma busca em notas (`?query`),
+    /// não uma busca de linha. Mesma razão do `search_is_shell`: suprime o
+    /// filtro ao vivo (grep em disco não deve rodar a cada tecla).
+    pub fn search_is_note_query(&self) -> bool {
+        self.draft.text().trim_start().starts_with('?')
+    }
+
+    /// Trata o Enter no modo Search. `! <cmd>` enfileira um comando de shell;
+    /// `?query` roda a busca full-text nas notas; senão confirma a busca de
+    /// linha. Retorna `true` se um comando de shell foi enfileirado.
     pub fn commit_search(&mut self) -> bool {
         if let Some(rest) = self.draft.text().trim_start().strip_prefix('!') {
             let cmd = rest.trim().to_string();
@@ -779,6 +796,17 @@ impl App {
             }
             self.queue_shell(cmd);
             return true;
+        }
+        if let Some(rest) = self.draft.text().trim_start().strip_prefix('?') {
+            let query = rest.trim().to_string();
+            self.draft_clear();
+            self.clear_search();
+            if query.is_empty() {
+                self.mode = Mode::Normal;
+                return false;
+            }
+            self.run_note_search(&query);
+            return false;
         }
         // Confirmação normal de busca: mantém o filtro, sai do modo.
         self.mode = Mode::Normal;

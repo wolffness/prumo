@@ -65,6 +65,9 @@ pub enum Mode {
     /// Confirmação ao sair da revisão de um projeto: `s`/`Enter` marca como
     /// revisado hoje, `n`/`Esc` mantém a data anterior.
     ConfirmReview,
+    /// Resultados da busca em notas (`?query` na busca `/`): `j`/`k` move,
+    /// `Enter` abre a nota no note panel, `Esc`/`q` volta ao Normal.
+    NoteSearchResults,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

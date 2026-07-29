@@ -5,7 +5,7 @@ expression: buffer_to_text(&buf)
  FILTERS                   ▶▮◀ /tmp/tuxedo-snapshot.txt  •  15 tas DETAIL                           
      ┌ tuxedo · help ─────────────────────────────────────────────────────────────────────────┐     
  PROJ│  NAVIGATION                                  VIEW                                      │     
-   +w│    j / ↓             next task                 /                 fuzzy search          │     
+   +w│    j / ↓             next task                 /                 fuzzy search (?query: │     
    +h│    k / ↑             previous task             fp / fc           filter project/context│     
    +f│    gg                first task                ff / fs           saved filter pick/save│     
    +h│    G                 last task                 S                 cycle sort            │     

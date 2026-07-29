@@ -108,7 +108,13 @@ fn view() -> Section {
     (
         tr("VIEW", "VISÃO"),
         vec![
-            ("/", tr("fuzzy search", "busca difusa")),
+            (
+                "/",
+                tr(
+                    "fuzzy search (?query: notes)",
+                    "busca difusa (?query: notas)",
+                ),
+            ),
             (
                 "fp / fc",
                 tr("filter project/context", "filtrar projeto/contexto"),

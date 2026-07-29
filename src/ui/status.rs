@@ -24,6 +24,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::ConfirmDispatch => tr("CONFIRM", "CONFIRMAR").into(),
         Mode::Review => tr("REVIEW", "REVISÃO").into(),
         Mode::ConfirmReview => tr("CONFIRM", "CONFIRMAR").into(),
+        Mode::NoteSearchResults => tr("NOTE SEARCH", "BUSCA EM NOTAS").into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),
         Mode::PromptProject => tr("PROJECT", "PROJETO").into(),
@@ -120,6 +121,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::ConfirmReview => tr(
             "s/Enter mark reviewed · n/Esc keep last review",
             "s/Enter marcar revisado · n/Esc manter revisão anterior",
+        ),
+        Mode::NoteSearchResults => tr(
+            "j/k move · Enter open note · Esc back",
+            "j/k mover · Enter abrir nota · Esc voltar",
         ),
         Mode::Normal if app.reviewing_project().is_some() => tr(
             "j/k · x done · Esc finish review",

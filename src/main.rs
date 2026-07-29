@@ -447,6 +447,7 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Welcome => handle_welcome(app, key),
         Mode::Issues => handle_issues(app, key),
         Mode::Review => handle_review(app, key),
+        Mode::NoteSearchResults => handle_note_search_results(app, key),
         Mode::ConfirmDispatch => match key.code {
             KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_dispatch_done(),
             KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.dismiss_dispatch_done(),
@@ -1134,15 +1135,27 @@ fn handle_search(app: &mut App, key: KeyEvent) {
         }
         _ => {
             if apply_to_draft(app, key) == DraftEffect::TextChanged {
-                // Texto iniciado por `!` é um comando shell, não uma busca:
-                // não filtra a lista ao vivo (só roda no Enter).
-                if app.search_is_shell() {
+                // Texto iniciado por `!` é um comando shell e por `?` é uma
+                // busca em notas — nenhum dos dois filtra a lista ao vivo
+                // (só rodam no Enter; a busca em notas é I/O em disco).
+                if app.search_is_shell() || app.search_is_note_query() {
                     app.clear_search();
                 } else {
                     app.set_search(app.draft.text().to_string());
                 }
             }
         }
+    }
+}
+
+/// Resultados da busca em notas (`?query`): navegar e abrir no note panel.
+fn handle_note_search_results(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.note_search_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.note_search_step(false),
+        KeyCode::Enter => app.open_note_search_result(),
+        KeyCode::Esc | KeyCode::Char('q') => app.exit_note_search_results(),
+        _ => {}
     }
 }
 

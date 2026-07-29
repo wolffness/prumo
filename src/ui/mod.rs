@@ -18,6 +18,7 @@ pub mod issues;
 pub mod list;
 pub mod logo;
 pub mod note_panel;
+pub mod note_search;
 pub mod review;
 pub mod settings;
 pub mod share;
@@ -141,6 +142,10 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Mode::Settings => {
             frame.render_widget(Clear, body_area);
             settings::render(frame, body_area, app);
+        }
+        Mode::NoteSearchResults => {
+            frame.render_widget(Clear, body_area);
+            note_search::render(frame, body_area, app);
         }
         Mode::PromptAttach => {
             // Wider and taller than the tag prompts: file paths are long and
