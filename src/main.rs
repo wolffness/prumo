@@ -1159,12 +1159,17 @@ fn handle_note_search_results(app: &mut App, key: KeyEvent) {
     }
 }
 
+/// Linhas por página de `PageUp`/`PageDown` no painel de ajuda.
+const HELP_PAGE_ROWS: u16 = 15;
+
 fn handle_help(app: &mut App, key: KeyEvent) {
-    if matches!(
-        key.code,
-        KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q')
-    ) {
-        app.mode = Mode::Normal;
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => app.mode = Mode::Normal,
+        KeyCode::Char('j') | KeyCode::Down => app.help_scroll_step(true, 1),
+        KeyCode::Char('k') | KeyCode::Up => app.help_scroll_step(false, 1),
+        KeyCode::PageDown => app.help_scroll_step(true, HELP_PAGE_ROWS),
+        KeyCode::PageUp => app.help_scroll_step(false, HELP_PAGE_ROWS),
+        _ => {}
     }
 }
 
@@ -1533,7 +1538,10 @@ fn apply_action(app: &mut App, action: Action) {
             app.draft_clear();
             app.clear_search();
         }
-        Action::OpenHelp => app.mode = Mode::Help,
+        Action::OpenHelp => {
+    app.mode = Mode::Help;
+    app.reset_help_scroll();
+}
         Action::OpenSettings => app.mode = Mode::Settings,
         Action::OpenCommandPalette => {
             // Snapshot the current mode (Normal or Visual) so cancel/run

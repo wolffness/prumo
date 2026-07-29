@@ -175,6 +175,10 @@ pub struct App {
     pub(crate) note_search_query: String,
     pub(crate) note_search_results: Vec<NoteSearchHit>,
     pub(crate) note_search_cursor: usize,
+    /// Rolagem do painel de ajuda (`?`). `Cell` porque `render` só tem `&App`
+    /// (mesmo padrão de `view_scroll`/`NotePanel::scroll`): o próprio render
+    /// clampa contra o total de linhas e regrava o valor efetivo.
+    pub(crate) help_scroll: Cell<u16>,
     /// Cache da sessão das issues da visão Issues, e de qual repo/projeto vieram.
     pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
     pub(crate) issues_repo: Option<String>,
@@ -319,6 +323,7 @@ impl App {
             note_search_query: String::new(),
             note_search_results: Vec::new(),
             note_search_cursor: 0,
+            help_scroll: Cell::new(0),
             issues: Vec::new(),
             issues_repo: None,
             issues_project: None,
@@ -1162,6 +1167,21 @@ impl App {
         self.selection.clear();
         self.selection.toggle(abs);
         self.open_dispatch_draft();
+    }
+
+    /// Zera a rolagem do painel de ajuda (chamado ao abrir com `?`, pra
+    /// sempre reabrir do topo em vez de lembrar a posição de uma vez anterior).
+    pub fn reset_help_scroll(&mut self) {
+        self.help_scroll.set(0);
+    }
+
+    /// Rola o painel de ajuda `amount` linhas. O clamp contra o total real de
+    /// linhas acontece no próximo `render` (mesmo padrão de `view_scroll`);
+    /// aqui só soma/subtrai livremente, saturando em 0.
+    pub fn help_scroll_step(&mut self, down: bool, amount: u16) {
+        let cur = self.help_scroll.get();
+        self.help_scroll
+            .set(if down { cur.saturating_add(amount) } else { cur.saturating_sub(amount) });
     }
 
     /// Reconcile against disk and drain the inbox. Returns `true` when it is

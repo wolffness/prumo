@@ -460,6 +460,22 @@ mod tests {
     }
 
     #[test]
+    fn help_scroll_step_saturates_and_resets() {
+        let mut app = build_app("a\n");
+        assert_eq!(app.help_scroll.get(), 0);
+        app.help_scroll_step(false, 5);
+        assert_eq!(app.help_scroll.get(), 0, "não desce abaixo de 0");
+        app.help_scroll_step(true, 3);
+        app.help_scroll_step(true, 4);
+        assert_eq!(app.help_scroll.get(), 7);
+        app.help_scroll_step(false, 100);
+        assert_eq!(app.help_scroll.get(), 0);
+        app.help_scroll_step(true, 9);
+        app.reset_help_scroll();
+        assert_eq!(app.help_scroll.get(), 0);
+    }
+
+    #[test]
     fn dispatch_selected_issue_imports_and_opens_draft_for_it() {
         use crate::advisor::github::IssueRow;
         use crate::app::{Mode, View};
