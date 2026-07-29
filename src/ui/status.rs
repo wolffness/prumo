@@ -27,7 +27,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::NoteSearchResults => tr("NOTE SEARCH", "BUSCA EM NOTAS").into(),
         Mode::Projects => tr("PROJECTS", "PROJETOS").into(),
         Mode::Journal => tr("JOURNAL", "JOURNAL").into(),
-        Mode::PromptJournalEntry => tr("NEW ENTRY", "NOVA ENTRADA").into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),
         Mode::PromptProject => tr("PROJECT", "PROJETO").into(),
@@ -136,10 +135,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Journal => tr(
             "j/k move · n new entry · Esc back",
             "j/k mover · n nova entrada · Esc voltar",
-        ),
-        Mode::PromptJournalEntry => tr(
-            "type the entry · Enter save · Esc cancel",
-            "digite a entrada · Enter salvar · Esc cancelar",
         ),
         Mode::Normal if app.reviewing_project().is_some() => tr(
             "j/k · x done · Esc finish review",

@@ -63,12 +63,23 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let selected = i == cursor;
         let prefix = if selected { "▸ " } else { "  " };
         let bg = if selected { theme.selected } else { theme.bg };
+        // Cada entrada é 1 linha na lista mesmo quando o texto tem vários
+        // parágrafos — mostra só a primeira linha como prévia, com `…`
+        // indicando que há mais (símbolo, não cor, carrega a informação).
+        let mut it = entry.text.lines();
+        let first = it.next().unwrap_or("");
+        let has_more = it.next().is_some();
+        let preview = if has_more {
+            format!("{first} …")
+        } else {
+            first.to_string()
+        };
         lines.push(
             Line::from(vec![
                 Span::styled(prefix.to_string(), Style::default().fg(theme.accent)),
                 Span::styled(format!("{}  ", entry.date), Style::default().fg(theme.dim)),
                 Span::styled(
-                    entry.text.clone(),
+                    preview,
                     Style::default().fg(theme.fg).add_modifier(if selected {
                         Modifier::BOLD
                     } else {

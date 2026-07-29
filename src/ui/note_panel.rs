@@ -152,6 +152,22 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 
     let footer: Vec<Line> = if let Some(ctx) = app.dispatch_ctx.as_ref() {
         dispatch_footer(theme, ctx)
+    } else if app.journal_compose {
+        let hint = if panel.insert {
+            tr(
+                "Esc view · Enter newline · Ctrl-S save entry",
+                "Esc visualizar · Enter nova linha · Ctrl-S salvar entrada",
+            )
+        } else {
+            tr(
+                "i edit · Ctrl-S save entry · Esc/q cancel",
+                "i editar · Ctrl-S salvar entrada · Esc/q cancelar",
+            )
+        };
+        vec![Line::from(Span::styled(
+            format!(" {hint}"),
+            Style::default().fg(theme.dim),
+        ))]
     } else {
         let hint = if panel.insert {
             tr(

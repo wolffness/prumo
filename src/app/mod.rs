@@ -178,6 +178,9 @@ pub struct App {
     pub(crate) journal_project: Option<String>,
     pub(crate) journal_entries: Vec<JournalEntry>,
     pub(crate) journal_cursor: usize,
+    /// `true` enquanto `note_panel` é o composer de uma entrada de journal
+    /// (não uma nota de tarefa real) — ver `main::handle_note`.
+    pub journal_compose: bool,
     /// Cache da sessão da lista de projetos da visão Review.
     pub(crate) review_cache: Vec<ReviewRow>,
     pub(crate) review_cursor: usize,
@@ -338,6 +341,7 @@ impl App {
             journal_project: None,
             journal_entries: Vec::new(),
             journal_cursor: 0,
+            journal_compose: false,
             review_cache: Vec::new(),
             review_cursor: 0,
             reviewing_project: None,

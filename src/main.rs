@@ -450,7 +450,6 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::NoteSearchResults => handle_note_search_results(app, key),
         Mode::Projects => handle_projects(app, key),
         Mode::Journal => handle_journal(app, key),
-        Mode::PromptJournalEntry => handle_prompt(app, key),
         Mode::ConfirmDispatch => match key.code {
             KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_dispatch_done(),
             KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.dismiss_dispatch_done(),
@@ -558,6 +557,34 @@ fn handle_share(app: &mut App, _key: KeyEvent) {
 /// Esc back to view. Ctrl+S saves in either mode.
 fn handle_note(app: &mut App, key: KeyEvent) {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    // Composer de entrada do journal: Ctrl-S grava o bloco (texto livre,
+    // multi-linha) e volta pro Journal; Esc só cancela quando já em modo
+    // view (em insert, Esc continua saindo pra view normalmente — não
+    // fecha o composer sem querer no meio da digitação).
+    if app.journal_compose {
+        if ctrl && key.code == KeyCode::Char('s') {
+            let text = app
+                .note_panel
+                .as_ref()
+                .map(|p| p.lines.join("\n"))
+                .unwrap_or_default();
+            app.commit_journal_entry(&text);
+            return;
+        }
+        let in_view_mode = app.note_panel.as_ref().is_some_and(|p| !p.insert);
+        if in_view_mode {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    app.cancel_journal_entry();
+                    return;
+                }
+                // Sem arquivo real no disco ainda — abrir no $EDITOR não
+                // se aplica a um composer solto.
+                KeyCode::Char('o') => return,
+                _ => {}
+            }
+        }
+    }
     // Teclas do draft de despacho, antes do empréstimo do panel: `Tab` cicla
     // o agente, `Ctrl-D` despacha (aqui o Ctrl-D vale mais que delete-forward).
     if app.dispatch_ctx.is_some() {
@@ -1325,28 +1352,19 @@ fn handle_prompt(app: &mut App, key: KeyEvent) {
 
     match key.code {
         KeyCode::Esc => {
-            app.mode = if app.mode == Mode::PromptJournalEntry {
-                Mode::Journal
-            } else {
-                Mode::Normal
-            };
+            app.mode = Mode::Normal;
             app.draft_clear();
         }
         KeyCode::Enter => {
             let prev_mode = app.mode;
             let value = app.draft.text().to_string();
             app.draft_clear();
-            app.mode = if prev_mode == Mode::PromptJournalEntry {
-                Mode::Journal
-            } else {
-                Mode::Normal
-            };
+            app.mode = Mode::Normal;
             match prev_mode {
                 Mode::PromptProject => app.add_project_to_current(&value),
                 Mode::PromptContext => app.toggle_context_on_current(&value),
                 Mode::PromptSaveFilter => app.save_current_filter_as(&value),
                 Mode::PromptAttach => app.attach_file_to_current(&value),
-                Mode::PromptJournalEntry => app.commit_journal_entry(&value),
                 _ => {}
             }
         }

@@ -75,9 +75,6 @@ pub enum Mode {
     /// Journal de um projeto (`Shift+J`): linha do tempo rolável de
     /// entradas datadas. `j`/`k` move, `n` nova entrada, `Esc`/`q` volta.
     Journal,
-    /// Prompt de 1 linha pra nova entrada do journal (`n` dentro do
-    /// Journal). Enter grava e volta pro Journal; Esc cancela e volta.
-    PromptJournalEntry,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

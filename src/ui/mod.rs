@@ -165,10 +165,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
             frame.render_widget(Clear, r);
             dialog::render_prompt(frame, r, app);
         }
-        Mode::PromptProject
-        | Mode::PromptContext
-        | Mode::PromptSaveFilter
-        | Mode::PromptJournalEntry => {
+        Mode::PromptProject | Mode::PromptContext | Mode::PromptSaveFilter => {
             let w: u16 = PROMPT_MAX_W.min(area.width.saturating_sub(4));
             let r = centered_in(area, w, PROMPT_H);
             frame.render_widget(Clear, r);

@@ -1,14 +1,17 @@
 //! Journal por projeto (`Shift+J`): linha do tempo rolável de entradas
-//! datadas ("publiquei a campanha X", "aumentei a verba em Y") — não é uma
-//! tarefa (não é "a fazer") nem a nota de uma tarefa específica, é um log
-//! cronológico do projeto como um todo. Reusa `notes_dir`: um arquivo `.md`
-//! por projeto, texto solto, sem struct de metadata estruturada.
+//! datadas, cada uma podendo ter múltiplos parágrafos ("publiquei a
+//! campanha X\n\nDetalhes do rollout...") — não é uma tarefa (não é "a
+//! fazer") nem a nota de uma tarefa específica, é um log cronológico do
+//! projeto como um todo. Reusa `notes_dir`: um arquivo `.md` por projeto,
+//! blocos `## YYYY-MM-DD` seguidos de texto livre, sem struct de metadata
+//! estruturada.
 
 use std::path::{Path, PathBuf};
 
-use super::{App, Mode};
+use super::{App, Mode, NotePanel};
 
-/// Uma entrada do journal: uma linha `YYYY-MM-DD  texto` no arquivo.
+/// Uma entrada do journal: o bloco sob um cabeçalho `## YYYY-MM-DD`. `text`
+/// preserva quebras de linha internas (múltiplos parágrafos).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JournalEntry {
     pub date: String,
@@ -22,24 +25,36 @@ pub fn journal_path(notes_dir: &Path, project: &str) -> PathBuf {
         .join(format!("{}.md", crate::note::slugify(project)))
 }
 
-/// Parseia linhas `YYYY-MM-DD  texto` do conteúdo do arquivo, mais recente
-/// primeiro (o arquivo cresce por append, então a última linha é a mais
-/// nova — inverter dá a ordem de exibição).
+/// Parseia blocos `## YYYY-MM-DD\n\n<texto>\n\n` do conteúdo do arquivo,
+/// mais recente primeiro (o arquivo cresce por append no fim — inverter a
+/// ordem dos blocos dá a ordem de exibição).
 fn parse_entries(content: &str) -> Vec<JournalEntry> {
-    let mut out: Vec<JournalEntry> = content
-        .lines()
-        .filter_map(|l| {
-            let date = l.get(0..10)?;
-            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
-            let text = l.get(10..)?.trim();
-            (!text.is_empty()).then(|| JournalEntry {
-                date: date.to_string(),
-                text: text.to_string(),
-            })
-        })
-        .collect();
+    let mut out = Vec::new();
+    let mut current: Option<(String, Vec<&str>)> = None;
+    for line in content.lines() {
+        if let Some(date) = line.strip_prefix("## ")
+            && chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok()
+        {
+            if let Some((d, body)) = current.take() {
+                push_entry(&mut out, d, body);
+            }
+            current = Some((date.to_string(), Vec::new()));
+        } else if let Some((_, body)) = current.as_mut() {
+            body.push(line);
+        }
+    }
+    if let Some((d, body)) = current {
+        push_entry(&mut out, d, body);
+    }
     out.reverse();
     out
+}
+
+fn push_entry(out: &mut Vec<JournalEntry>, date: String, body: Vec<&str>) {
+    let text = body.join("\n").trim().to_string();
+    if !text.is_empty() {
+        out.push(JournalEntry { date, text });
+    }
 }
 
 impl App {
@@ -103,23 +118,30 @@ impl App {
             .unwrap_or_default();
     }
 
-    /// `n` no Journal: abre o prompt de 1 linha pra nova entrada.
+    /// `n` no Journal: abre um composer de texto livre (mesmo motor do
+    /// painel de nota — multi-linha, insert mode, sem exigir arquivo real
+    /// no disco ainda). `Ctrl-S` grava, `Esc` (em modo view) cancela.
     pub fn begin_journal_entry(&mut self) {
         if self.journal_project.is_none() {
             return;
         }
-        self.draft_clear();
-        self.mode = Mode::PromptJournalEntry;
+        let title = crate::brand::tr("new journal entry", "nova entrada de journal").to_string();
+        self.note_panel = Some(NotePanel::blank(title));
+        self.journal_compose = true;
+        self.mode = Mode::Note;
     }
 
-    /// Enter no prompt: grava `hoje  texto` no arquivo (cria o diretório se
-    /// preciso) e recarrega a lista. Texto vazio não grava nada.
+    /// `Ctrl-S` no composer: grava `## hoje\n\n<texto>\n\n` no arquivo (cria
+    /// o diretório se preciso) e recarrega a lista. Texto vazio cancela sem
+    /// gravar, igual `cancel_journal_entry`.
     pub fn commit_journal_entry(&mut self, text: &str) {
         let text = text.trim();
         let Some(project) = self.journal_project.clone() else {
+            self.cancel_journal_entry();
             return;
         };
         if text.is_empty() {
+            self.cancel_journal_entry();
             return;
         }
         let path = journal_path(self.notes_dir(), &project);
@@ -129,14 +151,14 @@ impl App {
             self.flash(format!("journal mkdir failed: {e}"));
             return;
         }
-        let line = format!("{}  {text}\n", self.today());
+        let block = format!("## {}\n\n{text}\n\n", self.today());
         let result = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&path)
             .and_then(|mut f| {
                 use std::io::Write;
-                f.write_all(line.as_bytes())
+                f.write_all(block.as_bytes())
             });
         match result {
             Ok(()) => {
@@ -146,6 +168,16 @@ impl App {
             }
             Err(e) => self.flash(format!("journal write failed: {e}")),
         }
+        self.note_panel = None;
+        self.journal_compose = false;
+        self.mode = Mode::Journal;
+    }
+
+    /// `Esc` no composer (em modo view): fecha sem gravar nada.
+    pub fn cancel_journal_entry(&mut self) {
+        self.note_panel = None;
+        self.journal_compose = false;
+        self.mode = Mode::Journal;
     }
 }
 
@@ -164,13 +196,24 @@ mod tests {
     }
 
     #[test]
-    fn parse_entries_reverses_to_newest_first_and_skips_garbage() {
-        let content = "2026-07-01  criei o projeto\nlinha solta sem data\n2026-07-20  aumentei a verba\n";
+    fn parse_entries_reverses_and_preserves_multiline_paragraphs() {
+        let content = "## 2026-07-01\n\ncriei o projeto\n\n## 2026-07-20\n\naumentei a verba\nem duas linhas\n\nsegundo parágrafo\n\n";
         let entries = parse_entries(content);
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].date, "2026-07-20");
-        assert_eq!(entries[0].text, "aumentei a verba");
+        assert_eq!(
+            entries[0].text,
+            "aumentei a verba\nem duas linhas\n\nsegundo parágrafo"
+        );
         assert_eq!(entries[1].date, "2026-07-01");
+    }
+
+    #[test]
+    fn parse_entries_skips_garbage_and_empty_bodies() {
+        let content = "linha solta sem header\n\n## 2026-07-01\n\n   \n\n## 2026-07-02\n\ntexto real\n\n";
+        let entries = parse_entries(content);
+        assert_eq!(entries.len(), 1, "bloco de 07-01 tem corpo vazio, é descartado");
+        assert_eq!(entries[0].date, "2026-07-02");
     }
 
     #[test]
@@ -198,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn commit_journal_entry_appends_and_reloads_newest_first() {
+    fn commit_journal_entry_appends_multiline_and_reloads_newest_first() {
         let mut app = build_app("a +work\n");
         let dir = app.file_path.parent().unwrap().to_path_buf();
         app.set_notes_dir(dir);
@@ -206,9 +249,12 @@ mod tests {
         app.enter_journal_view();
         assert!(app.journal_entries().is_empty());
 
-        app.commit_journal_entry("publiquei a campanha");
+        app.commit_journal_entry("publiquei a campanha\ncom duas linhas");
         assert_eq!(app.journal_entries().len(), 1);
-        assert_eq!(app.journal_entries()[0].text, "publiquei a campanha");
+        assert_eq!(
+            app.journal_entries()[0].text,
+            "publiquei a campanha\ncom duas linhas"
+        );
 
         app.commit_journal_entry("aumentei a verba");
         assert_eq!(app.journal_entries().len(), 2);
@@ -220,14 +266,32 @@ mod tests {
     }
 
     #[test]
-    fn commit_journal_entry_ignores_blank_text() {
+    fn commit_journal_entry_ignores_blank_text_and_returns_to_journal() {
         let mut app = build_app("a +work\n");
         let dir = app.file_path.parent().unwrap().to_path_buf();
         app.set_notes_dir(dir);
         app.filter.project = Some("work".to_string());
         app.enter_journal_view();
+        app.begin_journal_entry();
         app.commit_journal_entry("   ");
         assert!(app.journal_entries().is_empty());
+        assert_eq!(app.mode, Mode::Journal);
+        assert!(app.note_panel.is_none());
+    }
+
+    #[test]
+    fn begin_and_cancel_journal_entry_roundtrip_mode() {
+        let mut app = build_app("a +work\n");
+        let dir = app.file_path.parent().unwrap().to_path_buf();
+        app.set_notes_dir(dir);
+        app.filter.project = Some("work".to_string());
+        app.enter_journal_view();
+        app.begin_journal_entry();
+        assert_eq!(app.mode, Mode::Note);
+        assert!(app.note_panel.is_some());
+        app.cancel_journal_entry();
+        assert_eq!(app.mode, Mode::Journal);
+        assert!(app.note_panel.is_none());
     }
 
     #[test]
