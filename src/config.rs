@@ -80,6 +80,8 @@ pub struct Config {
     /// `x` arquiva/desarquiva) — sobrevivem sem tarefa aberta até serem
     /// desarquivados. Serializado como `project_archived.<nome> = on`.
     pub project_archived: Vec<String>,
+    /// Projetos já vistos pelo Prumo, preservados mesmo sem tarefas.
+    pub project_known: Vec<String>,
 }
 
 impl Config {
@@ -264,6 +266,19 @@ fn parse(s: &str) -> Config {
                 }
             }
             _ if k
+                .strip_prefix("project_known.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k
+                    .strip_prefix("project_known.")
+                    .expect("checked above")
+                    .trim()
+                    .to_string();
+                if parse_bool(v).unwrap_or(false) && !c.project_known.contains(&name) {
+                    c.project_known.push(name);
+                }
+            }
+            _ if k
                 .strip_prefix("advisor_link.")
                 .is_some_and(|n| !n.trim().is_empty()) =>
             {
@@ -380,6 +395,9 @@ fn serialize(c: &Config) -> String {
     for project in &c.project_archived {
         let _ = writeln!(out, "project_archived.{project} = on");
     }
+    for project in &c.project_known {
+        let _ = writeln!(out, "project_known.{project} = on");
+    }
     out
 }
 
@@ -437,6 +455,7 @@ mod tests {
             review_last: vec![("prumo".into(), "2026-07-15".into())],
             review_every_days: Some(14),
             project_archived: vec!["antigo".into()],
+            project_known: vec!["cliente".into()],
         };
 
         let s = serialize(&c);
@@ -646,6 +665,7 @@ mod tests {
             review_last: vec![("errand".into(), "2026-07-01".into())],
             review_every_days: None,
             project_archived: vec![],
+            project_known: vec![],
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

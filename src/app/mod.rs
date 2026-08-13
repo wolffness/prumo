@@ -171,8 +171,10 @@ pub struct App {
     /// `+projeto`s arquivados explicitamente (visão Projects, `P`), lidos
     /// do config. Ver [`projects`](crate::app::projects).
     pub project_archived: Vec<String>,
+    pub project_known: Vec<String>,
     pub(crate) project_cache: Vec<ProjectRow>,
     pub(crate) project_cursor: usize,
+    pub(crate) project_detail: Option<projects::ProjectDetail>,
     /// Estado da visão Journal (`Shift+J`) — ver
     /// [`journal`](crate::app::journal).
     pub(crate) journal_project: Option<String>,
@@ -310,6 +312,7 @@ impl App {
         let review_last = cfg.review_last.clone();
         let review_every_days = cfg.review_every_days;
         let project_archived = cfg.project_archived.clone();
+        let project_known = cfg.project_known.clone();
         let mut app = Self {
             store,
             view: View::List,
@@ -336,8 +339,10 @@ impl App {
             review_last,
             review_every_days,
             project_archived,
+            project_known,
             project_cache: Vec::new(),
             project_cursor: 0,
+            project_detail: None,
             journal_project: None,
             journal_entries: Vec::new(),
             journal_cursor: 0,
@@ -972,6 +977,7 @@ impl App {
         self.review_last = new_cfg.review_last.clone();
         self.review_every_days = new_cfg.review_every_days;
         self.project_archived = new_cfg.project_archived.clone();
+        self.project_known = new_cfg.project_known.clone();
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
     }

@@ -129,8 +129,16 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             "j/k mover · Enter abrir nota · Esc voltar",
         ),
         Mode::Projects => tr(
-            "j/k move · Enter filter list · x archive/unarchive · Esc back",
-            "j/k mover · Enter filtrar lista · x arquivar/desarquivar · Esc voltar",
+            if app.project_detail().is_some() {
+                "j/k move · Esc back to projects"
+            } else {
+                "j/k move · Enter open project · x archive/unarchive · Esc back"
+            },
+            if app.project_detail().is_some() {
+                "j/k mover · Esc voltar aos projetos"
+            } else {
+                "j/k mover · Enter abrir projeto · x arquivar/desarquivar · Esc voltar"
+            },
         ),
         Mode::Journal => tr(
             "j/k move · n new entry · Esc back",

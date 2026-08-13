@@ -27,6 +27,12 @@ const EVENT_POLL: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    if argv.first().is_some_and(|arg| arg == "mcp") {
+        if argv.len() != 1 {
+            anyhow::bail!("usage: {} mcp", tuxedo::brand::app_name());
+        }
+        return tuxedo::mcp::run();
+    }
     // A recognized subcommand (possibly preceded by `-f`/`--json`) runs the
     // one-shot CLI and exits; otherwise we fall through to the TUI.
     if let Some(code) = tuxedo::cmd::run(&argv)? {
@@ -153,6 +159,7 @@ fn print_usage() {
     println!("usage: {name} [FILE]                 launch the TUI");
     println!("       {name} <command> [args]       run a one-shot command");
     println!("       {name} update");
+    println!("       {name} mcp");
     println!();
     println!("Without FILE or a command, opens ./todo.txt if present; otherwise");
     println!("prompts to create ./todo.txt here or open a sample todo.txt, in");
@@ -178,6 +185,7 @@ fn print_usage() {
     println!("  listproj, lsprj           list +projects");
     println!("  listcon, lsc              list @contexts");
     println!("  update                    print instructions for upgrading {name}");
+    println!("  mcp                       run the local MCP server on stdio");
     println!();
     println!("Options:");
     println!("  -f, --force      skip confirmation prompts (e.g. for del)");
@@ -496,6 +504,15 @@ fn handle_review(app: &mut App, key: KeyEvent) {
 
 /// Visão Projects: todo `+projeto` conhecido, `x` arquiva/desarquiva.
 fn handle_projects(app: &mut App, key: KeyEvent) {
+    if app.project_detail().is_some() {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => app.project_detail_step(true),
+            KeyCode::Char('k') | KeyCode::Up => app.project_detail_step(false),
+            KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('q') => app.close_project_detail(),
+            _ => {}
+        }
+        return;
+    }
     match key.code {
         KeyCode::Char('j') | KeyCode::Down => app.project_step(true),
         KeyCode::Char('k') | KeyCode::Up => app.project_step(false),

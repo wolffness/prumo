@@ -285,6 +285,29 @@ as remove do arquivo de trabalho (atomicamente: o `done.txt` é escrito antes
 de as originais serem removidas). `a` alterna a visão de arquivo para você
 navegar, desarquivar ou apagar permanentemente tarefas passadas.
 
+### Projetos permanentes
+
+Pressione `P` para abrir todos os projetos conhecidos. Um projeto continua
+nessa lista mesmo sem tarefas abertas ou concluídas, até você arquivá-lo
+explicitamente com `x`. `Enter` abre uma linha do tempo única, com tarefas
+abertas e concluídas separadas por status; `Esc` volta à lista de projetos.
+
+### MCP local
+
+`prumo mcp` inicia um servidor MCP local por `stdio`, próprio para Claude Code
+e outros clientes MCP. Ele oferece `list_projects`, `list_tasks`, `add_task` e
+`complete_task`; não oferece apagar tarefas nem arquivar projetos.
+
+Depois de instalar o binário, conecte-o ao Claude Code:
+
+```sh
+claude mcp add --scope user --transport stdio prumo -- prumo mcp
+```
+
+O servidor usa as mesmas variáveis `TODO_FILE`, `TODO_DIR` e `DONE_FILE` do
+Prumo. Clientes devem pedir confirmação antes de usar as duas ferramentas que
+escrevem (`add_task` e `complete_task`).
+
 ## Interface de linha de comando
 
 Quando o primeiro argumento é um subcomando reconhecido, o prumo roda um

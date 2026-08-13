@@ -18,7 +18,21 @@ pub struct ProjectRow {
     /// Tarefas abertas com essa tag agora — 0 não significa "não existe",
     /// só "sem pendência aberta no momento".
     pub open_count: usize,
+    pub done_count: usize,
     pub archived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectTaskRow {
+    pub raw: String,
+    pub completed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectDetail {
+    pub name: String,
+    pub rows: Vec<ProjectTaskRow>,
+    pub cursor: usize,
 }
 
 impl App {
@@ -34,6 +48,10 @@ impl App {
     fn build_project_rows(&self) -> Vec<ProjectRow> {
         let open_counts = ordered_unique(self.tasks(), |t| &t.projects);
         let mut names: BTreeSet<String> = open_counts.iter().map(|(n, _)| n.clone()).collect();
+        names.extend(self.project_known.iter().cloned());
+        for t in self.tasks() {
+            names.extend(t.projects.iter().cloned());
+        }
         for t in self.archive().tasks() {
             names.extend(t.projects.iter().cloned());
         }
@@ -46,10 +64,18 @@ impl App {
                     .iter()
                     .find(|(n, _)| n == &name)
                     .map_or(0, |(_, c)| *c);
+                let done_count = self
+                    .archive()
+                    .tasks()
+                    .iter()
+                    .chain(self.tasks().iter().filter(|task| task.done))
+                    .filter(|task| task.projects.iter().any(|project| project == &name))
+                    .count();
                 let archived = self.project_is_archived(&name);
                 ProjectRow {
                     name,
                     open_count,
+                    done_count,
                     archived,
                 }
             })
@@ -75,6 +101,7 @@ impl App {
     }
 
     pub fn enter_projects_view(&mut self) {
+        self.remember_discovered_projects();
         self.project_cache = self.build_project_rows();
         self.project_cursor = self
             .project_cursor
@@ -83,6 +110,7 @@ impl App {
     }
 
     pub fn exit_projects_view(&mut self) {
+        self.project_detail = None;
         self.mode = Mode::Normal;
     }
 
@@ -98,15 +126,38 @@ impl App {
         };
     }
 
-    /// `Enter` na visão Projects: filtra a lista por ele, como `fp`.
+    /// `Enter` abre a linha do tempo unificada do projeto sob o cursor.
     pub fn project_apply_filter(&mut self) {
         let Some(row) = self.project_cache.get(self.project_cursor) else {
             return;
         };
-        self.filter.project = Some(row.name.clone());
-        self.cursor = 0;
-        self.recompute_visible();
-        self.mode = Mode::Normal;
+        self.project_detail = Some(ProjectDetail {
+            name: row.name.clone(),
+            rows: self.build_project_detail_rows(&row.name),
+            cursor: 0,
+        });
+    }
+
+    pub fn project_detail(&self) -> Option<&ProjectDetail> {
+        self.project_detail.as_ref()
+    }
+
+    pub fn close_project_detail(&mut self) {
+        self.project_detail = None;
+    }
+
+    pub fn project_detail_step(&mut self, down: bool) {
+        let Some(detail) = self.project_detail.as_mut() else {
+            return;
+        };
+        if detail.rows.is_empty() {
+            return;
+        }
+        detail.cursor = if down {
+            (detail.cursor + 1).min(detail.rows.len() - 1)
+        } else {
+            detail.cursor.saturating_sub(1)
+        };
     }
 
     /// `x` na visão Projects: arquiva/desarquiva o projeto sob o cursor e
@@ -124,6 +175,13 @@ impl App {
         } else {
             self.project_archived.retain(|p| p != &row.name);
         }
+        if !self
+            .project_known
+            .iter()
+            .any(|project| project == &row.name)
+        {
+            self.project_known.push(row.name.clone());
+        }
 
         // `self.project_archived` já é o estado desejado completo (partiu
         // de um clone do disco e só é mutado aqui) — recarrega o disco pra
@@ -131,6 +189,7 @@ impl App {
         // só o campo que esta feature possui (mesmo idioma de `Prefs::save`).
         let mut cfg = Config::load();
         cfg.project_archived = self.project_archived.clone();
+        cfg.project_known = self.project_known.clone();
         if let Err(e) = cfg.save() {
             self.flash(format!(
                 "{}: {e}",
@@ -142,6 +201,56 @@ impl App {
         self.project_cursor = self
             .project_cursor
             .min(self.project_cache.len().saturating_sub(1));
+    }
+
+    fn build_project_detail_rows(&self, name: &str) -> Vec<ProjectTaskRow> {
+        let mut rows: Vec<ProjectTaskRow> = self
+            .tasks()
+            .iter()
+            .filter(|task| task.projects.iter().any(|project| project == name))
+            .map(|task| ProjectTaskRow {
+                raw: task.raw.clone(),
+                completed: task.done,
+            })
+            .collect();
+        rows.extend(
+            self.archive()
+                .tasks()
+                .iter()
+                .filter(|task| task.projects.iter().any(|project| project == name))
+                .map(|task| ProjectTaskRow {
+                    raw: task.raw.clone(),
+                    completed: true,
+                }),
+        );
+        rows.sort_by_key(|row| row.completed);
+        rows
+    }
+
+    fn remember_discovered_projects(&mut self) {
+        let names: BTreeSet<String> = self
+            .tasks()
+            .iter()
+            .chain(self.archive().tasks())
+            .flat_map(|task| task.projects.iter().cloned())
+            .collect();
+        let mut changed = false;
+        for name in names {
+            if !self.project_known.contains(&name) {
+                self.project_known.push(name);
+                changed = true;
+            }
+        }
+        if changed && self.config_path.is_some() {
+            let mut cfg = Config::load();
+            cfg.project_known = self.project_known.clone();
+            if let Err(error) = cfg.save() {
+                self.flash(format!(
+                    "{}: {error}",
+                    crate::brand::tr("save failed", "falha ao salvar")
+                ));
+            }
+        }
     }
 }
 
@@ -164,14 +273,30 @@ mod tests {
         let names: Vec<&str> = rows.iter().map(|r| r.name.as_str()).collect();
         assert!(names.contains(&"open"));
         assert!(names.contains(&"history"), "projeto só em done.txt");
-        assert!(names.contains(&"gone"), "projeto arquivado sem tarefa nenhuma");
+        assert!(
+            names.contains(&"gone"),
+            "projeto arquivado sem tarefa nenhuma"
+        );
 
         let open_row = rows.iter().find(|r| r.name == "open").unwrap();
         assert_eq!(open_row.open_count, 1);
+        assert_eq!(open_row.done_count, 0);
         assert!(!open_row.archived);
         let gone_row = rows.iter().find(|r| r.name == "gone").unwrap();
         assert_eq!(gone_row.open_count, 0);
         assert!(gone_row.archived);
+    }
+
+    #[test]
+    fn project_counts_completed_tasks_waiting_to_be_archived() {
+        let app = build_app("x 2026-07-01 2026-06-01 work +client\n");
+        let client = app
+            .build_project_rows()
+            .into_iter()
+            .find(|row| row.name == "client")
+            .unwrap();
+        assert_eq!(client.open_count, 0);
+        assert_eq!(client.done_count, 1);
     }
 
     #[test]
@@ -193,14 +318,31 @@ mod tests {
     }
 
     #[test]
-    fn project_apply_filter_sets_filter_and_returns_to_normal() {
+    fn project_apply_filter_opens_unified_history() {
         let mut app = build_app("a +work\nb +home\n");
+        app.store.archive = crate::app::Archive::for_test(
+            crate::todo::parse_file("x 2026-07-01 done +home\n"),
+            String::new(),
+            app.archive().path().to_path_buf(),
+        );
         app.enter_projects_view();
-        // "home"/"work" empatam sem arquivo — ordem alfabética por nome.
         let expected = app.project_rows()[0].name.clone();
         app.project_apply_filter();
-        assert_eq!(app.mode, Mode::Normal);
-        assert_eq!(app.filter().project.as_deref(), Some(expected.as_str()));
+        let detail = app.project_detail().expect("project detail");
+        assert_eq!(detail.name, expected);
+        assert!(detail.rows.iter().any(|row| row.completed));
+    }
+
+    #[test]
+    fn remembered_project_survives_without_tasks() {
+        let mut app = build_app("a +client\n");
+        app.enter_projects_view();
+        app.store.delete(0);
+        assert!(
+            app.build_project_rows()
+                .iter()
+                .any(|row| row.name == "client")
+        );
     }
 
     // `toggle_project_archived` também persiste via `Config::load()`/

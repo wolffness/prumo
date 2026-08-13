@@ -37,6 +37,25 @@ pub fn resolve_path(arg: Option<String>) -> io::Result<PathBuf> {
     sample_path()
 }
 
+/// Resolve an existing todo.txt without creating files or the sample. Read-only
+/// integrations use this so a listing never changes the user's filesystem.
+pub fn resolve_read_path() -> io::Result<PathBuf> {
+    if let Some(f) = std::env::var_os("TODO_FILE") {
+        return Ok(PathBuf::from(f));
+    }
+    if let Some(dir) = std::env::var_os("TODO_DIR") {
+        return Ok(PathBuf::from(dir).join("todo.txt"));
+    }
+    let cwd_todo = PathBuf::from("todo.txt");
+    if cwd_todo.is_file() {
+        return Ok(cwd_todo);
+    }
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "no todo.txt found; set TODO_FILE or TODO_DIR",
+    ))
+}
+
 /// Resolve the `done.txt` path for archiving. Honors `$DONE_FILE`; otherwise
 /// the sibling `done.txt` next to the todo file (the core's default).
 pub fn done_path(todo_path: &Path) -> PathBuf {
