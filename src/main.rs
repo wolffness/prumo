@@ -1807,6 +1807,7 @@ fn copy_current_task(app: &mut App, body_only: bool) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use chrono::NaiveDate;

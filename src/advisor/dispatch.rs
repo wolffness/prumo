@@ -103,6 +103,7 @@ pub fn dispatch(slug: &str, agent: &str, dir: &Path, prompt: &str) -> Result<()>
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

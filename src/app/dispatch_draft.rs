@@ -214,6 +214,7 @@ fn run_brief_builder(prompt: &str, dir: &std::path::Path) -> Result<String, Stri
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

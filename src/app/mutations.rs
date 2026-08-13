@@ -426,6 +426,7 @@ impl App {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::app::{
         WeekStart,

@@ -127,6 +127,7 @@ fn collect_markdown_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::app::test_support::build_app;
 
