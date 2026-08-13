@@ -28,7 +28,7 @@ expression: buffer_to_text(&buf)
      │  SYSTEM                                          i / Esc         panel: write / back·cl│     
      │    : / Ctrl-P        command palette             Shift+arrows    panel: select text    │     
      │    s                 share capture QR            Del/Backspace   panel: delete selectio│     
-     │    prumo mcp         MCP · Claude --help         Space / n       panel: toggle / new su│     
+     │    mcp               MCP · Claude --help         Space / n       panel: toggle / new su│     
      │    ? / ,             help / settings             Ctrl-S / o      panel: save / $EDITOR │     
      │    q                 quit                      o / O             open / create note in │     
      │                                                t                 attach file (drag or p│     

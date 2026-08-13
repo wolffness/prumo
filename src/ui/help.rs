@@ -215,10 +215,7 @@ fn system() -> Section {
         vec![
             (": / Ctrl-P", tr("command palette", "paleta de comandos")),
             ("s", tr("share capture QR", "QR de captura")),
-            (
-                "prumo mcp",
-                tr("MCP · Claude --help", "MCP · Claude --help"),
-            ),
+            ("mcp", tr("MCP · Claude --help", "MCP · Claude --help")),
             ("? / ,", tr("help / settings", "ajuda / configurações")),
             ("q", tr("quit", "sair")),
         ],
