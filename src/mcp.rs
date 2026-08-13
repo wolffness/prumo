@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use crate::cli;
 use crate::config::Config;
-use crate::core::{AddOutcome, ArchiveOutcome, CompleteOutcome, Store};
+use crate::core::{AddOutcome, CompleteOutcome, Store};
 use crate::todo::Task;
 
 pub fn run() -> Result<()> {
@@ -111,14 +111,14 @@ fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "complete_task",
-            "description": "Complete one open task by its current list number and move it to done.txt.",
+            "description": "Complete one open task by its current list number. It remains in todo.txt until archived in Prumo.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "number": { "type": "integer", "minimum": 1 } },
                 "required": ["number"],
                 "additionalProperties": false
             },
-            "annotations": { "readOnlyHint": false, "destructiveHint": false }
+            "annotations": { "readOnlyHint": false, "destructiveHint": true }
         }),
     ]
 }
@@ -227,6 +227,14 @@ fn task_data(store: &Store, args: &Value) -> Result<Value, String> {
     if include_done {
         tasks.extend(
             store
+                .tasks()
+                .iter()
+                .enumerate()
+                .filter(|(_, task)| task.done && matches_project(task, project))
+                .map(|(index, task)| task_value(index + 1, "todo", task)),
+        );
+        tasks.extend(
+            store
                 .archive()
                 .tasks()
                 .iter()
@@ -281,6 +289,12 @@ fn complete_task(store: &mut Store, args: &Value) -> Result<Value, String> {
         .filter(|number| *number > 0)
         .ok_or_else(|| "number must be a positive integer".to_string())? as usize;
     let abs = number - 1;
+    let Some(task) = store.tasks().get(abs) else {
+        return Err(format!("no open task {number}"));
+    };
+    if task.done {
+        return Err("task is already completed".to_string());
+    }
     let completed = match store.toggle_complete(abs) {
         CompleteOutcome::Completed { abs } | CompleteOutcome::CompletedSpawned { abs, .. } => {
             store.tasks()[abs].clone()
@@ -290,26 +304,7 @@ fn complete_task(store: &mut Store, args: &Value) -> Result<Value, String> {
         CompleteOutcome::Aborted(_) => return Err("todo file changed on disk; retry".to_string()),
         CompleteOutcome::Error(error) => return Err(error.to_string()),
     };
-    match store.archive_completed() {
-        ArchiveOutcome::Archived { .. } => {
-            Ok(json!({ "task": task_value(number, "done", &completed) }))
-        }
-        ArchiveOutcome::Nothing => Ok(json!({
-            "task": task_value(number, "todo", &completed),
-            "archived": false,
-            "warning": "task was completed but not moved to done.txt"
-        })),
-        ArchiveOutcome::Aborted(_) => Ok(json!({
-            "task": task_value(number, "todo", &completed),
-            "archived": false,
-            "warning": "task was completed but the todo file changed before it could be archived"
-        })),
-        ArchiveOutcome::Error(error) => Ok(json!({
-            "task": task_value(number, "todo", &completed),
-            "archived": false,
-            "warning": format!("task was completed but not moved to done.txt: {error}")
-        })),
-    }
+    Ok(json!({ "task": task_value(number, "todo", &completed) }))
 }
 
 #[cfg(test)]

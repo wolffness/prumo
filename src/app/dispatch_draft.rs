@@ -174,8 +174,9 @@ const BRIEF_BUILDER_TIMEOUT_SECS: u64 = 90;
 /// depender de `&mut App`.
 fn run_brief_builder(prompt: &str, dir: &std::path::Path) -> Result<String, String> {
     use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
 
-    let child = Command::new("claude")
+    let mut child = Command::new("claude")
         .args(["-p", prompt])
         .current_dir(dir)
         // Sem a env var o CLI usa o login OAuth da assinatura, não a API.
@@ -189,14 +190,17 @@ fn run_brief_builder(prompt: &str, dir: &std::path::Path) -> Result<String, Stri
         .spawn()
         .map_err(|e| format!("claude: {e}"))?;
 
-    let pid = child.id();
-    // Watchdog solto: se o processo já terminou sozinho, `kill` num pid
-    // morto só retorna erro (ignorado) — não precisa de sincronização pra
-    // cancelar a thread, ela mesma acaba assim que o sleep termina.
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(BRIEF_BUILDER_TIMEOUT_SECS));
-        let _ = Command::new("kill").arg(pid.to_string()).status();
-    });
+    let deadline = Instant::now() + Duration::from_secs(BRIEF_BUILDER_TIMEOUT_SECS);
+    loop {
+        match child.try_wait().map_err(|e| format!("claude: {e}"))? {
+            Some(_) => break,
+            None if Instant::now() >= deadline => {
+                child.kill().map_err(|e| format!("claude: {e}"))?;
+                break;
+            }
+            None => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
 
     let out = child.wait_with_output().map_err(|e| format!("claude: {e}"))?;
     if out.status.success() {
@@ -611,7 +615,9 @@ impl App {
             self.mode = Mode::Normal;
             return;
         };
-        for abs in self.tasks_with_slug(&slug) {
+        let mut tasks = self.tasks_with_slug(&slug);
+        tasks.sort_unstable_by(|a, b| b.cmp(a));
+        for abs in tasks {
             if self.tasks().get(abs).is_some_and(|t| !t.done) {
                 self.toggle_complete(abs);
             }

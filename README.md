@@ -296,7 +296,8 @@ abertas e concluídas separadas por status; `Esc` volta à lista de projetos.
 
 `prumo mcp` inicia um servidor MCP local por `stdio`, próprio para Claude Code
 e outros clientes MCP. Ele oferece `list_projects`, `list_tasks`, `add_task` e
-`complete_task`; não oferece apagar tarefas nem arquivar projetos.
+`complete_task`; a conclusão mantém a tarefa no `todo.txt` até ela ser arquivada
+no Prumo. O servidor não oferece apagar tarefas nem arquivar projetos.
 
 Depois de instalar o binário, conecte-o ao Claude Code:
 
