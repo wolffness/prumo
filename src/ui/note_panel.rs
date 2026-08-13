@@ -23,25 +23,35 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         tr(" note ", " nota ")
     };
     let dirty_mark = if panel.dirty { "* " } else { "" };
+    let mut title_spans = vec![
+        Span::raw(" "),
+        Span::styled(
+            format!("{dirty_mark}{}", panel.title),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!(" ·{mode_label}"), Style::default().fg(theme.dim)),
+    ];
+    if app.dispatch_ctx.as_ref().is_some_and(|c| c.briefed) {
+        title_spans.push(Span::styled(
+            tr("· ✔ brief ready ", "· ✔ brief pronto "),
+            Style::default().fg(theme.accent),
+        ));
+    }
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.border).bg(theme.panel))
-        .title(Line::from(vec![
-            Span::raw(" "),
-            Span::styled(
-                format!("{dirty_mark}{}", panel.title),
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(format!(" ·{mode_label}"), Style::default().fg(theme.dim)),
-        ]))
+        .title(Line::from(title_spans))
         .style(Style::default().bg(theme.panel));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    // O draft de despacho ganha um footer próprio de 3 linhas (status,
+    // comandos primários, atalhos secundários).
+    let footer_rows = if app.dispatch_ctx.is_some() { 3 } else { 1 };
     let [body_area, footer_area] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+        Layout::vertical([Constraint::Min(1), Constraint::Length(footer_rows)]).areas(inner);
 
     // Hard-wrap each buffer line into width-sized display rows. Char-exact
     // chunking (not word wrap) keeps the cursor mapping trivial: display
@@ -96,6 +106,20 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         }
     }
 
+    // Linha-guia (só display, fora do buffer) enquanto `## Instruções` está
+    // vazia: ensina o fluxo sem obrigar o usuário a apagar um placeholder.
+    if app.dispatch_ctx.is_some() && crate::app::instructions_empty(&panel.lines) {
+        lines.push(Line::from(Span::styled(
+            tr(
+                "✎ write the raw idea; /prompt on a line turns it into a brief",
+                "✎ escreva a ideia crua; /prompt numa linha vira brief",
+            ),
+            Style::default()
+                .fg(theme.dim)
+                .add_modifier(Modifier::ITALIC),
+        )));
+    }
+
     let offset = crate::ui::keep_cursor_visible(
         panel.scroll.get(),
         Some(cursor_display_row),
@@ -126,25 +150,123 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         body_area,
     );
 
-    let hint = if panel.insert {
-        tr(
-            "Esc view · Enter newline · Ctrl-S save",
-            "Esc visualizar · Enter nova linha · Ctrl-S salvar",
-        )
-    } else {
-        tr(
-            "i edit · Space toggle · n subtask · o editor · Esc/q close (saves)",
-            "i editar · Espaço alternar · n subtarefa · o editor · Esc/q fechar (salva)",
-        )
-    };
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
+    let footer: Vec<Line> = if let Some(ctx) = app.dispatch_ctx.as_ref() {
+        dispatch_footer(theme, ctx)
+    } else if app.journal_compose {
+        let hint = if panel.insert {
+            tr(
+                "Esc view · Enter newline · Ctrl-S save entry",
+                "Esc visualizar · Enter nova linha · Ctrl-S salvar entrada",
+            )
+        } else {
+            tr(
+                "i edit · Ctrl-S save entry · Esc/q cancel",
+                "i editar · Ctrl-S salvar entrada · Esc/q cancelar",
+            )
+        };
+        vec![Line::from(Span::styled(
             format!(" {hint}"),
             Style::default().fg(theme.dim),
-        )))
-        .style(Style::default().bg(theme.panel)),
+        ))]
+    } else {
+        let hint = if panel.insert {
+            tr(
+                "Esc view · Enter newline · Ctrl-S save",
+                "Esc visualizar · Enter nova linha · Ctrl-S salvar",
+            )
+        } else {
+            tr(
+                "i edit · Space toggle · n subtask · o editor · Esc/q close (saves)",
+                "i editar · Espaço alternar · n subtarefa · o editor · Esc/q fechar (salva)",
+            )
+        };
+        vec![Line::from(Span::styled(
+            format!(" {hint}"),
+            Style::default().fg(theme.dim),
+        ))]
+    };
+    frame.render_widget(
+        Paragraph::new(footer).style(Style::default().bg(theme.panel)),
         footer_area,
     );
+}
+
+/// Footer de 3 linhas do draft de despacho: status (agente + dir/aviso),
+/// comandos `/` primários por fase, atalhos secundários. Cada estado carrega
+/// um símbolo próprio (✎ ⧗ ✔ ⚠ ▶) — cor é só reforço.
+fn dispatch_footer(theme: &Theme, ctx: &crate::app::DispatchCtx) -> Vec<Line<'static>> {
+    let accent = Style::default()
+        .fg(theme.accent)
+        .add_modifier(Modifier::BOLD);
+    let dim = Style::default().fg(theme.dim);
+    let fg = Style::default().fg(theme.fg);
+
+    let status = Line::from(vec![
+        Span::styled(format!(" {}", ctx.agent_label()), accent),
+        Span::styled(format!(" · {}", ctx.status_rest()), dim),
+    ]);
+
+    let primary = if ctx.busy {
+        Line::from(Span::styled(
+            format!(
+                " ⧗ {}",
+                tr(
+                    "wait — the brief will replace ## Instructions",
+                    "aguarde — o brief vai substituir a seção ## Instruções"
+                )
+            ),
+            dim,
+        ))
+    } else if ctx.warning().is_some() {
+        Line::from(Span::styled(
+            format!(
+                " ⚠ {}",
+                tr(
+                    "resolve the warning above before dispatching",
+                    "resolva o aviso acima antes de despachar"
+                )
+            ),
+            dim,
+        ))
+    } else {
+        // Brief pronto promove o despacho a primeiro comando.
+        let cmds: [(&str, &str); 3] = if ctx.briefed {
+            [
+                ("/go", tr("▶ dispatch", "▶ despachar")),
+                ("/prompt", tr("✎ redo brief", "✎ refazer brief")),
+                ("/codex", tr("agent", "agente")),
+            ]
+        } else {
+            [
+                ("/prompt", tr("✎ make a brief", "✎ gerar brief")),
+                ("/go", tr("▶ dispatch", "▶ despachar")),
+                ("/codex", tr("agent", "agente")),
+            ]
+        };
+        let mut spans = Vec::new();
+        for (cmd, label) in cmds {
+            spans.push(Span::styled(format!(" {cmd}"), accent));
+            spans.push(Span::styled(format!(" {label} "), fg));
+        }
+        spans.push(Span::styled(
+            tr("(type on a line + Enter)", "(digite numa linha + Enter)").to_string(),
+            dim,
+        ));
+        Line::from(spans)
+    };
+
+    let secondary = Line::from(Span::styled(
+        format!(
+            " {}",
+            tr(
+                "shortcuts: Ctrl-P brief · Tab agent · Ctrl-D dispatch · Ctrl-S save · o editor · Esc/q close (saves)",
+                "atalhos: Ctrl-P brief · Tab agente · Ctrl-D despachar · Ctrl-S salvar · o editor · Esc/q fechar (salva)"
+            )
+        ),
+        dim,
+    ));
+
+    vec![status, primary, secondary]
 }
 
 /// Per-line Markdown styling shared by the note panel and the DETAIL pane.

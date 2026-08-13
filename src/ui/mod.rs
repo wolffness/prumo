@@ -15,10 +15,13 @@ pub mod header;
 pub mod help;
 pub mod hyperlinks;
 pub mod issues;
-pub mod kanban;
+pub mod journal;
 pub mod list;
 pub mod logo;
 pub mod note_panel;
+pub mod note_search;
+pub mod projects;
+pub mod review;
 pub mod settings;
 pub mod share;
 pub mod status;
@@ -99,7 +102,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::List => list::render(frame, center_area, app),
         View::Archive => archive::render(frame, center_area, app),
         View::Issues => issues::render(frame, center_area, app),
-        View::Kanban => kanban::render(frame, center_area, app),
+        View::Review => review::render(frame, center_area, app),
     }
     if let Some(ra) = right_area {
         detail::render(frame, ra, app);
@@ -141,6 +144,18 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Mode::Settings => {
             frame.render_widget(Clear, body_area);
             settings::render(frame, body_area, app);
+        }
+        Mode::NoteSearchResults => {
+            frame.render_widget(Clear, body_area);
+            note_search::render(frame, body_area, app);
+        }
+        Mode::Projects => {
+            frame.render_widget(Clear, body_area);
+            projects::render(frame, body_area, app);
+        }
+        Mode::Journal => {
+            frame.render_widget(Clear, body_area);
+            journal::render(frame, body_area, app);
         }
         Mode::PromptAttach => {
             // Wider and taller than the tag prompts: file paths are long and
@@ -199,11 +214,62 @@ pub fn draw(frame: &mut Frame, app: &App) {
             frame.render_widget(Clear, r);
             welcome::render(frame, r, app);
         }
+        Mode::ConfirmDispatch => {
+            let r = centered_in(area, 58.min(area.width.saturating_sub(2)), 6);
+            frame.render_widget(Clear, r);
+            render_confirm_dispatch(frame, r, app);
+        }
         _ => {}
     }
     // OSC 8 hyperlinks are applied post-draw by the caller (see
     // `hyperlinks::collect` + `emit_overlay`). Doing it inside the buffer
     // breaks ratatui's diff width calculation — keep cell symbols pristine.
+}
+
+/// Confirmação pós-despacho: o agente concluiu e o usuário decide se as
+/// tarefas do despacho são completadas. Símbolo (✔) + texto, nunca só cor.
+fn render_confirm_dispatch(frame: &mut Frame, area: Rect, app: &crate::app::App) {
+    use ratatui::style::Modifier;
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::{Block, Borders, Paragraph};
+
+    let theme = app.theme();
+    let n = app.dispatch_done_task_count();
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border).bg(theme.panel))
+        .title(Line::from(Span::styled(
+            crate::brand::tr(" ✔ dispatch finished ", " ✔ despacho concluído "),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .style(Style::default().bg(theme.panel));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let lines = vec![
+        Line::raw(""),
+        Line::from(Span::styled(
+            format!(
+                " {} {n} {}",
+                crate::brand::tr("agent finished — complete", "o agente concluiu — completar"),
+                crate::brand::tr("task(s)?", "tarefa(s)?"),
+            ),
+            Style::default().fg(theme.fg),
+        )),
+        Line::raw(""),
+        Line::from(Span::styled(
+            crate::brand::tr(
+                " s/Enter complete · n/Esc keep as is",
+                " s/Enter completar · n/Esc manter como está",
+            ),
+            Style::default().fg(theme.dim),
+        )),
+    ];
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().bg(theme.panel)),
+        inner,
+    );
 }
 
 pub(crate) fn centered_in(parent: Rect, w: u16, h: u16) -> Rect {

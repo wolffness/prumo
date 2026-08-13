@@ -44,6 +44,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let mut lines: Vec<Line> = Vec::new();
     let mut cursor_line: Option<usize> = None;
 
+    // O token dispatch:<slug> é infra do badge, não corpo da tarefa.
+    let mut hidden_keys = app.prefs.hidden_keys.clone();
+    hidden_keys.push("dispatch".to_string());
+
     if visible.is_empty() {
         lines.push(Line::from(Span::styled(
             "   no tasks match".to_string(),
@@ -81,8 +85,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                     Some(&app.filter.search)
                 },
                 today: app.today(),
-                hidden_keys: &app.prefs.hidden_keys,
+                hidden_keys: &hidden_keys,
                 subtask_progress: app.subtask_progress(task),
+                dispatch: app.dispatch_badge_for(task),
             };
             if i == app.cursor {
                 cursor_line = Some(lines.len());

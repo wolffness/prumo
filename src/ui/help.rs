@@ -108,7 +108,13 @@ fn view() -> Section {
     (
         tr("VIEW", "VISÃO"),
         vec![
-            ("/", tr("fuzzy search", "busca difusa")),
+            (
+                "/",
+                tr(
+                    "fuzzy search (?query: notes)",
+                    "busca difusa (?query: notas)",
+                ),
+            ),
             (
                 "fp / fc",
                 tr("filter project/context", "filtrar projeto/contexto"),
@@ -124,6 +130,21 @@ fn view() -> Section {
             ),
             ("l", tr("list view", "visão de lista")),
             ("a", tr("archive view", "visão de arquivo")),
+            ("R", tr("review projects", "revisar projetos")),
+            (
+                "P",
+                tr(
+                    "all projects · x archive/unarchive",
+                    "todos os projetos · x arquivar/desarquivar",
+                ),
+            ),
+            (
+                "Shift-J",
+                tr(
+                    "project journal · n new entry",
+                    "journal do projeto · n nova entrada",
+                ),
+            ),
             ("A", tr("archive completed", "arquivar concluídas")),
             ("H", tr("show done in list", "mostrar concluídas na lista")),
             ("F", tr("show future in list", "mostrar futuras na lista")),
@@ -132,7 +153,7 @@ fn view() -> Section {
                 tr("toggle filter / detail", "alternar filtro / detalhe"),
             ),
             ("T", tr("cycle theme", "alternar tema")),
-            ("D", tr("cycle density", "alternar densidade")),
+            ("zd", tr("cycle density", "alternar densidade")),
             ("L", tr("toggle line numbers", "números de linha")),
         ],
     )
@@ -144,15 +165,28 @@ fn advisor_shell() -> Section {
         vec![
             ("I", tr("GitHub issues view", "visão de issues do GitHub")),
             (
-                "  in view: g",
-                tr("AI rank by goal", "ranquear por objetivo (IA)"),
-            ),
-            ("K", tr("Kanban board view", "visão Kanban do board")),
-            (
-                "  in view: H/L · a · d",
+                "  in view: g · D",
                 tr(
-                    "move column · cycle agent · dispatch",
-                    "mover coluna · ciclar agente · despachar",
+                    "rank by goal (AI) · dispatch #1",
+                    "ranquear por objetivo (IA) · despachar #1",
+                ),
+            ),
+            (
+                "D",
+                tr("dispatch draft (selection)", "draft de despacho (seleção)"),
+            ),
+            (
+                "  in draft: /prompt · /go · /codex",
+                tr(
+                    "make a brief · dispatch · switch agent (line + Enter)",
+                    "gerar brief · despachar · trocar agente (linha + Enter)",
+                ),
+            ),
+            (
+                "  shortcuts: Ctrl-P · Ctrl-D · Tab",
+                tr(
+                    "brief · dispatch · cycle agent",
+                    "brief · despachar · ciclar agente",
                 ),
             ),
             (
@@ -239,45 +273,63 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 
     let bg = Style::default().bg(theme.panel).fg(theme.fg);
 
-    // Keybindings (top, two columns) — divider — Format (bottom, two columns).
-    // Each half splits sections across left/right; the last section in each
-    // column drops its trailing blank so the divider lands tight.
-    let kb_lines = two_columns(
+    // Keybindings (two columns), a divider, then Format (two columns) — all
+    // one scrollable buffer now, so growing the keybinding list can never
+    // silently push Format out of view: it just takes one more `j`/`k`.
+    let mut lines = two_columns(
         theme,
         inner.width,
         &[navigation(), editing(), system()],
         &[view(), notes_files(), advisor_shell()],
     );
-    let kb_height = u16::try_from(kb_lines.len()).unwrap_or(u16::MAX);
-
+    lines.push(Line::from(Span::styled(
+        "─".repeat(usize::from(inner.width)),
+        Style::default().fg(theme.border),
+    )));
     let format = format_section();
     let (fmt_left, fmt_right) = format.1.split_at(format.1.len().div_ceil(2));
     let fmt_left_section: Section = (format.0, fmt_left.to_vec());
     let fmt_right_section: Section = ("", fmt_right.to_vec());
-    let fmt_lines = two_columns(
+    lines.extend(two_columns(
         theme,
         inner.width,
         &[fmt_left_section],
         &[fmt_right_section],
-    );
+    ));
 
-    let [kb_area, divider, fmt_area] = Layout::vertical([
-        Constraint::Length(kb_height),
-        Constraint::Length(1),
-        Constraint::Min(0),
-    ])
-    .areas(inner);
+    // Last row is a scroll hint, never content — reserved unconditionally so
+    // the affordance is always in the same place, scrollable or not.
+    let [content_area, hint_area] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
-    frame.render_widget(Paragraph::new(kb_lines).style(bg), kb_area);
+    let max_offset = u16::try_from(lines.len())
+        .unwrap_or(u16::MAX)
+        .saturating_sub(content_area.height);
+    let offset = app.help_scroll.get().min(max_offset);
+    app.help_scroll.set(offset);
+
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            "─".repeat(usize::from(divider.width)),
-            Style::default().fg(theme.border),
-        )))
-        .style(bg),
-        divider,
+        Paragraph::new(lines).style(bg).scroll((offset, 0)),
+        content_area,
     );
-    frame.render_widget(Paragraph::new(fmt_lines).style(bg), fmt_area);
+
+    let mut hint: Vec<Span> = vec![Span::styled(
+        format!(" {}", tr("j/k scroll", "j/k rolar")),
+        Style::default().fg(theme.dim),
+    )];
+    // Arrows are the affordance that there's more off-screen — shown only
+    // when true, so a help panel that already fits doesn't imply scrolling.
+    if offset > 0 {
+        hint.push(Span::styled(" ↑", Style::default().fg(theme.accent)));
+    }
+    if offset < max_offset {
+        hint.push(Span::styled(" ↓", Style::default().fg(theme.accent)));
+    }
+    hint.push(Span::styled(
+        format!("  · {}", tr("? close", "? fechar")),
+        Style::default().fg(theme.dim),
+    ));
+    frame.render_widget(Paragraph::new(Line::from(hint)).style(bg), hint_area);
 }
 
 /// Render `left` and `right` section lists side-by-side. Each side gets half
@@ -364,10 +416,13 @@ fn render_sections<'a>(theme: &Theme, sections: &[Section]) -> Vec<Line<'a>> {
     lines
 }
 
+/// Pads `s` to `w` columns. A key label longer than `w` (some legitimately
+/// are, e.g. `"in draft: /prompt · /go · /codex"`) still gets one separating
+/// space instead of gluing straight into the description that follows.
 fn pad_str(s: &str, w: usize) -> String {
     let len = s.chars().count();
     if len >= w {
-        s.to_string()
+        format!("{s} ")
     } else {
         let mut o = s.to_string();
         o.push_str(&" ".repeat(w - len));
@@ -377,7 +432,18 @@ fn pad_str(s: &str, w: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::advisor_shell;
+    use super::{advisor_shell, pad_str};
+
+    #[test]
+    fn pad_str_pads_short_labels_and_separates_long_ones() {
+        assert_eq!(pad_str("yy", 6), "yy    ");
+        assert_eq!(pad_str("exact", 5), "exact ", "no espaço, nunca cola");
+        assert_eq!(
+            pad_str("in draft: /prompt · /go · /codex", 18),
+            "in draft: /prompt · /go · /codex ",
+            "rótulo mais longo que a coluna ainda separa da descrição"
+        );
+    }
 
     #[test]
     fn advisor_shell_section_lists_shell_and_advisor_commands() {

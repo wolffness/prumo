@@ -20,8 +20,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::Search if app.search_is_shell() => "SHELL".into(),
         Mode::Search => tr("SEARCH", "BUSCA").into(),
         Mode::Issues => "ISSUES".into(),
-        Mode::Kanban => "KANBAN".into(),
         Mode::Visual => "VISUAL".into(),
+        Mode::ConfirmDispatch => tr("CONFIRM", "CONFIRMAR").into(),
+        Mode::Review => tr("REVIEW", "REVISÃO").into(),
+        Mode::ConfirmReview => tr("CONFIRM", "CONFIRMAR").into(),
+        Mode::NoteSearchResults => tr("NOTE SEARCH", "BUSCA EM NOTAS").into(),
+        Mode::Projects => tr("PROJECTS", "PROJETOS").into(),
+        Mode::Journal => tr("JOURNAL", "JOURNAL").into(),
         Mode::Help => tr("HELP", "AJUDA").into(),
         Mode::Settings => tr("SETTINGS", "CONFIG").into(),
         Mode::PromptProject => tr("PROJECT", "PROJETO").into(),
@@ -45,6 +50,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     };
     if matches!(app.view, View::Archive) {
         mode_label = tr("ARCHIVE", "ARQUIVO").into();
+    }
+    if let Some(project) = app.reviewing_project() {
+        mode_label = format!("{} +{project}", tr("REVIEW", "REVISÃO")).into();
     }
     if let Some(f) = app.flash_active() {
         mode_label = format!("{mode_label} · {f}").into();
@@ -104,6 +112,42 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             "j/k move · g rank · r refresh · Enter open · + import · Esc back",
             "j/k mover · g ranquear · r atualizar · Enter abrir · + importar · Esc voltar",
         ),
+        Mode::ConfirmDispatch => tr(
+            "s/Enter complete tasks · n/Esc keep",
+            "s/Enter completar tarefas · n/Esc manter",
+        ),
+        Mode::Review => tr(
+            "j/k move · Enter open project · Esc back",
+            "j/k mover · Enter abrir projeto · Esc voltar",
+        ),
+        Mode::ConfirmReview => tr(
+            "s/Enter mark reviewed · n/Esc keep last review",
+            "s/Enter marcar revisado · n/Esc manter revisão anterior",
+        ),
+        Mode::NoteSearchResults => tr(
+            "j/k move · Enter open note · Esc back",
+            "j/k mover · Enter abrir nota · Esc voltar",
+        ),
+        Mode::Projects => tr(
+            if app.project_detail().is_some() {
+                "j/k move · Esc back to projects"
+            } else {
+                "j/k move · Enter open project · x archive/unarchive · Esc back"
+            },
+            if app.project_detail().is_some() {
+                "j/k mover · Esc voltar aos projetos"
+            } else {
+                "j/k mover · Enter abrir projeto · x arquivar/desarquivar · Esc voltar"
+            },
+        ),
+        Mode::Journal => tr(
+            "j/k move · n new entry · Esc back",
+            "j/k mover · n nova entrada · Esc voltar",
+        ),
+        Mode::Normal if app.reviewing_project().is_some() => tr(
+            "j/k · x done · Esc finish review",
+            "j/k · x concluir · Esc terminar revisão",
+        ),
         _ => tr(
             "j/k · n new · r reschedule · x done · / search · ? help · u undo · q quit",
             "j/k · n nova · r reagendar · x concluir · / buscar · ? ajuda · u desfazer · q sair",
@@ -130,6 +174,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             app.selection.len(),
             tr("selected", "selecionadas")
         ));
+    }
+    if let Some(summary) = dispatch_summary(app) {
+        right_parts.push(summary);
     }
     right_parts.push(app.today().to_string());
     right_parts.push(format!(
@@ -213,6 +260,24 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             .right_aligned(),
         right_area,
     );
+}
+
+/// Resumo dos agentes despachados (`agentes: ▶2 ⚠1 ✔1`), ou `None` sem
+/// despachos ativos. Símbolo carrega o estado; a contagem acompanha.
+fn dispatch_summary(app: &App) -> Option<String> {
+    use crate::app::DispatchBadge as B;
+    if app.dispatch_status.is_empty() {
+        return None;
+    }
+    let count = |b: B| app.dispatch_status.values().filter(|&&v| v == b).count();
+    let mut parts = Vec::new();
+    for (badge, sym) in [(B::Working, "▶"), (B::Blocked, "⚠"), (B::Idle, "⏸"), (B::Done, "✔")] {
+        let n = count(badge);
+        if n > 0 {
+            parts.push(format!("{sym}{n}"));
+        }
+    }
+    Some(format!("{} {}", tr("agents:", "agentes:"), parts.join(" ")))
 }
 
 pub fn render_command_line(frame: &mut Frame, area: Rect, app: &App) {

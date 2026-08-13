@@ -55,6 +55,25 @@ impl NotePanel {
         })
     }
 
+    /// Buffer em branco, sem arquivo real no disco ainda — para composers
+    /// como o do journal, que decidem por conta própria onde/como persistir
+    /// o conteúdo em vez de usar `save()`. `path` fica vazio; nunca chamar
+    /// `save()` neste painel.
+    pub fn blank(title: String) -> Self {
+        Self {
+            path: PathBuf::new(),
+            title,
+            lines: vec![String::new()],
+            row: 0,
+            col: 0,
+            insert: true,
+            dirty: false,
+            scroll: Cell::new(0),
+            wrap_w: Cell::new(usize::MAX),
+            sel_anchor: None,
+        }
+    }
+
     /// Selection bookkeeping for a movement key: Shift extends (anchoring at
     /// the current position on the first shifted move); unshifted movement
     /// drops the selection.

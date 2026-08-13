@@ -18,14 +18,21 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     ])
     .areas(area);
 
+    // Quando há +projeto em foco, o título já deixa claro que estas são as
+    // CONCLUÍDAS daquele projeto — sem isso, o mesmo "filter:+x" que na
+    // lista significa "abertas" reaparece aqui significando "concluídas",
+    // ambíguo pra quem só olha rápido.
+    let title = match app.filter().project.as_deref() {
+        Some(p) => format!("+{p} — done"),
+        None => "done.txt".to_string(),
+    };
     header::render(
         frame,
         header_area,
         theme,
         header::HeaderProps {
-            title: Some("done.txt"),
-            // file: "completed",
-            count: app.archive().len(),
+            title: Some(&title),
+            count: app.visible_indices().len(),
             sort: "completion-date",
             filter: None,
         },
@@ -100,6 +107,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             hidden_keys: &app.prefs.hidden_keys,
             // Archived tasks are finished; the progress badge is noise there.
             subtask_progress: None,
+            dispatch: None,
         };
         if i == app.cursor {
             cursor_line = Some(lines.len());

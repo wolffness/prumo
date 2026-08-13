@@ -27,6 +27,12 @@ const EVENT_POLL: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    if argv.first().is_some_and(|arg| arg == "mcp") {
+        if argv.len() != 1 {
+            anyhow::bail!("usage: {} mcp", tuxedo::brand::app_name());
+        }
+        return tuxedo::mcp::run();
+    }
     // A recognized subcommand (possibly preceded by `-f`/`--json`) runs the
     // one-shot CLI and exits; otherwise we fall through to the TUI.
     if let Some(code) = tuxedo::cmd::run(&argv)? {
@@ -153,6 +159,7 @@ fn print_usage() {
     println!("usage: {name} [FILE]                 launch the TUI");
     println!("       {name} <command> [args]       run a one-shot command");
     println!("       {name} update");
+    println!("       {name} mcp");
     println!();
     println!("Without FILE or a command, opens ./todo.txt if present; otherwise");
     println!("prompts to create ./todo.txt here or open a sample todo.txt, in");
@@ -178,6 +185,7 @@ fn print_usage() {
     println!("  listproj, lsprj           list +projects");
     println!("  listcon, lsc              list @contexts");
     println!("  update                    print instructions for upgrading {name}");
+    println!("  mcp                       run the local MCP server on stdio");
     println!();
     println!("Options:");
     println!("  -f, --force      skip confirmation prompts (e.g. for del)");
@@ -214,6 +222,14 @@ fn run(
         // Pick up the update-check result so the status-bar indicator can
         // appear without waiting for a keystroke.
         if app.poll_update_check() {
+            dirty = true;
+        }
+        // Badges dos agentes despachados (throttle interno de 10s).
+        if app.poll_dispatch_status() {
+            dirty = true;
+        }
+        // Resultado do brief-builder (Ctrl-P no draft de despacho).
+        if app.poll_prompt_improver() {
             dirty = true;
         }
         // Poll the config hot-reload watcher. On signal, reload strictly
@@ -438,27 +454,21 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::Note => handle_note(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Issues => handle_issues(app, key),
-        Mode::Kanban => handle_kanban(app, key),
+        Mode::Review => handle_review(app, key),
+        Mode::NoteSearchResults => handle_note_search_results(app, key),
+        Mode::Projects => handle_projects(app, key),
+        Mode::Journal => handle_journal(app, key),
+        Mode::ConfirmDispatch => match key.code {
+            KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_dispatch_done(),
+            KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.dismiss_dispatch_done(),
+            _ => {}
+        },
+        Mode::ConfirmReview => match key.code {
+            KeyCode::Char('s') | KeyCode::Char('y') | KeyCode::Enter => app.confirm_review_mark(),
+            KeyCode::Char('n') | KeyCode::Esc | KeyCode::Char('q') => app.confirm_review_skip(),
+            _ => {}
+        },
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
-    }
-}
-
-/// Visão Kanban do board (Project v2): `j`/`k` navegam, `H`/`L` movem o card
-/// de coluna (Status), `a` cicla o Agent, `r` atualiza, `Esc`/`l`/`K`/`q`
-/// volta para a lista.
-fn handle_kanban(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Char('j') | KeyCode::Down => app.kanban_step(true),
-        KeyCode::Char('k') | KeyCode::Up => app.kanban_step(false),
-        KeyCode::Char('H') | KeyCode::Left => app.kanban_move_status(false),
-        KeyCode::Char('L') | KeyCode::Right => app.kanban_move_status(true),
-        KeyCode::Char('a') => app.kanban_cycle_agent(),
-        KeyCode::Char('d') => app.kanban_dispatch(),
-        KeyCode::Char('r') => app.refresh_kanban(),
-        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('K') | KeyCode::Char('q') => {
-            app.exit_kanban_view();
-        }
-        _ => {}
     }
 }
 
@@ -471,8 +481,58 @@ fn handle_issues(app: &mut App, key: KeyEvent) {
         KeyCode::Char('g') => app.rank_current_issues(None),
         KeyCode::Enter => app.open_selected_issue(),
         KeyCode::Char('+') => app.import_selected_issue(),
+        KeyCode::Char('D') => app.dispatch_selected_issue(),
         KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('I') | KeyCode::Char('q') => {
             app.exit_issues_view();
+        }
+        _ => {}
+    }
+}
+
+/// Visão Review: lista de `+projeto`s por atraso de revisão.
+fn handle_review(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.review_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.review_step(false),
+        KeyCode::Enter => app.review_enter_project(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('R') | KeyCode::Char('q') => {
+            app.exit_review_view();
+        }
+        _ => {}
+    }
+}
+
+/// Visão Projects: todo `+projeto` conhecido, `x` arquiva/desarquiva.
+fn handle_projects(app: &mut App, key: KeyEvent) {
+    if app.project_detail().is_some() {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => app.project_detail_step(true),
+            KeyCode::Char('k') | KeyCode::Up => app.project_detail_step(false),
+            KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('q') => app.close_project_detail(),
+            _ => {}
+        }
+        return;
+    }
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.project_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.project_step(false),
+        KeyCode::Enter => app.project_apply_filter(),
+        KeyCode::Char('x') => app.toggle_project_archived(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('P') | KeyCode::Char('q') => {
+            app.exit_projects_view();
+        }
+        _ => {}
+    }
+}
+
+/// Journal do projeto em foco: `n` abre o prompt de nova entrada.
+fn handle_journal(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.journal_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.journal_step(false),
+        KeyCode::Char('n') => app.begin_journal_entry(),
+        KeyCode::Esc | KeyCode::Char('l') | KeyCode::Char('J') | KeyCode::Char('q') => {
+            app.exit_journal_view();
         }
         _ => {}
     }
@@ -514,6 +574,55 @@ fn handle_share(app: &mut App, _key: KeyEvent) {
 /// Esc back to view. Ctrl+S saves in either mode.
 fn handle_note(app: &mut App, key: KeyEvent) {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    // Composer de entrada do journal: Ctrl-S grava o bloco (texto livre,
+    // multi-linha) e volta pro Journal; Esc só cancela quando já em modo
+    // view (em insert, Esc continua saindo pra view normalmente — não
+    // fecha o composer sem querer no meio da digitação).
+    if app.journal_compose {
+        if ctrl && key.code == KeyCode::Char('s') {
+            let text = app
+                .note_panel
+                .as_ref()
+                .map(|p| p.lines.join("\n"))
+                .unwrap_or_default();
+            app.commit_journal_entry(&text);
+            return;
+        }
+        let in_view_mode = app.note_panel.as_ref().is_some_and(|p| !p.insert);
+        if in_view_mode {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    app.cancel_journal_entry();
+                    return;
+                }
+                // Sem arquivo real no disco ainda — abrir no $EDITOR não
+                // se aplica a um composer solto.
+                KeyCode::Char('o') => return,
+                _ => {}
+            }
+        }
+    }
+    // Teclas do draft de despacho, antes do empréstimo do panel: `Tab` cicla
+    // o agente, `Ctrl-D` despacha (aqui o Ctrl-D vale mais que delete-forward).
+    if app.dispatch_ctx.is_some() {
+        if key.code == KeyCode::Tab {
+            app.dispatch_cycle_agent();
+            return;
+        }
+        if ctrl && key.code == KeyCode::Char('d') {
+            app.dispatch_send();
+            return;
+        }
+        if ctrl && key.code == KeyCode::Char('p') {
+            app.dispatch_improve_prompt();
+            return;
+        }
+        // Enter numa linha `/comando` (/prompt, /go, /codex, ...) executa o
+        // comando em vez de quebrar linha.
+        if key.code == KeyCode::Enter && app.dispatch_try_slash_command() {
+            return;
+        }
+    }
     let Some(panel) = app.note_panel.as_mut() else {
         app.mode = Mode::Normal;
         return;
@@ -693,6 +802,7 @@ fn close_note_panel(app: &mut App, to_editor: bool) {
         }
     }
     app.mode = Mode::Normal;
+    app.dispatch_ctx = None;
     if to_editor {
         app.queue_editor_path(panel.path.clone());
     }
@@ -1099,9 +1209,10 @@ fn handle_search(app: &mut App, key: KeyEvent) {
         }
         _ => {
             if apply_to_draft(app, key) == DraftEffect::TextChanged {
-                // Texto iniciado por `!` é um comando shell, não uma busca:
-                // não filtra a lista ao vivo (só roda no Enter).
-                if app.search_is_shell() {
+                // Texto iniciado por `!` é um comando shell e por `?` é uma
+                // busca em notas — nenhum dos dois filtra a lista ao vivo
+                // (só rodam no Enter; a busca em notas é I/O em disco).
+                if app.search_is_shell() || app.search_is_note_query() {
                     app.clear_search();
                 } else {
                     app.set_search(app.draft.text().to_string());
@@ -1111,12 +1222,28 @@ fn handle_search(app: &mut App, key: KeyEvent) {
     }
 }
 
+/// Resultados da busca em notas (`?query`): navegar e abrir no note panel.
+fn handle_note_search_results(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.note_search_step(true),
+        KeyCode::Char('k') | KeyCode::Up => app.note_search_step(false),
+        KeyCode::Enter => app.open_note_search_result(),
+        KeyCode::Esc | KeyCode::Char('q') => app.exit_note_search_results(),
+        _ => {}
+    }
+}
+
+/// Linhas por página de `PageUp`/`PageDown` no painel de ajuda.
+const HELP_PAGE_ROWS: u16 = 15;
+
 fn handle_help(app: &mut App, key: KeyEvent) {
-    if matches!(
-        key.code,
-        KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q')
-    ) {
-        app.mode = Mode::Normal;
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => app.mode = Mode::Normal,
+        KeyCode::Char('j') | KeyCode::Down => app.help_scroll_step(true, 1),
+        KeyCode::Char('k') | KeyCode::Up => app.help_scroll_step(false, 1),
+        KeyCode::PageDown => app.help_scroll_step(true, HELP_PAGE_ROWS),
+        KeyCode::PageUp => app.help_scroll_step(false, HELP_PAGE_ROWS),
+        _ => {}
     }
 }
 
@@ -1301,7 +1428,9 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('r') => Action::Reschedule,
         KeyCode::Char('a') => Action::ToggleArchiveView,
         KeyCode::Char('I') => Action::ToggleIssuesView,
-        KeyCode::Char('K') => Action::ToggleKanbanView,
+        KeyCode::Char('R') => Action::OpenReviewView,
+        KeyCode::Char('P') => Action::OpenProjectsView,
+        KeyCode::Char('J') => Action::OpenJournalView,
         KeyCode::Char('l') => Action::GoList,
         KeyCode::Char('e') => Action::BeginEdit,
         KeyCode::Char('i') => Action::BeginEditInsert,
@@ -1311,8 +1440,11 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('t') => Action::BeginAttach,
         KeyCode::Enter => Action::OpenAttachments,
         KeyCode::Char('x') => Action::ToggleComplete,
+        // `zd` cycles density (a `z` leader for raras teclas de layout).
+        KeyCode::Char('d') if app.chord.consume('z') => Action::CycleDensity,
         // 'dd' chord. First press arms; second fires.
         KeyCode::Char('d') if app.chord.toggle('d') => Action::Delete,
+        KeyCode::Char('z') => Action::ArmZ,
         // 'yy' chord copies the whole line; 'yb' (after 'y' is armed) copies
         // the body only. Plain 'y' just arms the leader.
         KeyCode::Char('y') if app.chord.toggle('y') => Action::CopyLine,
@@ -1363,7 +1495,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('[') => Action::ToggleLeftPane,
         KeyCode::Char(']') => Action::ToggleRightPane,
         KeyCode::Char('T') => Action::OpenThemePicker,
-        KeyCode::Char('D') => Action::CycleDensity,
+        KeyCode::Char('D') => Action::OpenDispatchDraft,
         KeyCode::Char('L') => Action::ToggleLineNum,
         KeyCode::Char('H') => Action::ToggleShowDone,
         KeyCode::Char('F') => Action::ToggleShowFuture,
@@ -1482,7 +1614,10 @@ fn apply_action(app: &mut App, action: Action) {
             app.draft_clear();
             app.clear_search();
         }
-        Action::OpenHelp => app.mode = Mode::Help,
+        Action::OpenHelp => {
+    app.mode = Mode::Help;
+    app.reset_help_scroll();
+}
         Action::OpenSettings => app.mode = Mode::Settings,
         Action::OpenCommandPalette => {
             // Snapshot the current mode (Normal or Visual) so cancel/run
@@ -1518,7 +1653,11 @@ fn apply_action(app: &mut App, action: Action) {
             app.set_view(next);
         }
         Action::ToggleIssuesView => app.enter_issues_view(),
-        Action::ToggleKanbanView => app.enter_kanban_view(),
+        Action::OpenReviewView => app.enter_review_view(),
+        Action::OpenProjectsView => app.enter_projects_view(),
+        Action::OpenJournalView => app.enter_journal_view(),
+        Action::OpenDispatchDraft => app.open_dispatch_draft(),
+        Action::ArmZ => app.chord.arm('z'),
         Action::ArchiveCompleted => {
             if app.view() == View::Archive {
                 app.flash("already in archive");
@@ -1601,6 +1740,13 @@ fn apply_action(app: &mut App, action: Action) {
             }
         }
         Action::EscapeStack => {
+            // Dentro da revisão de um projeto, o próprio filtro +projeto é
+            // da Review — Esc pergunta se marca revisado em vez de limpá-lo
+            // como faria o Esc normal (has_pc abaixo).
+            if app.reviewing_project().is_some() {
+                app.review_request_finish();
+                return;
+            }
             let has_pc = app.filter().project.is_some() || app.filter().context.is_some();
             let has_search = !app.filter().search.is_empty();
             if has_pc {
@@ -1661,6 +1807,7 @@ fn copy_current_task(app: &mut App, body_only: bool) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use chrono::NaiveDate;
@@ -2094,6 +2241,26 @@ mod tests {
         app.set_view(View::Archive);
         apply_action(&mut app, Action::GoList);
         assert_eq!(app.view(), View::List);
+    }
+
+    #[test]
+    fn ctrl_p_in_dispatch_draft_does_not_open_the_palette() {
+        let mut app = build_app_with_archive("tarefa sem projeto\n", None);
+        let dir = app.file_path.parent().unwrap().to_path_buf();
+        app.set_notes_dir(dir);
+        app.open_dispatch_draft();
+        assert_eq!(app.mode, Mode::Note, "draft aberto no note panel");
+        // Sem +projeto o dir não resolve, então o Ctrl-P para no aviso — e é
+        // exatamente isso que o teste quer: a tecla foi roteada para o draft,
+        // não para a paleta de comandos.
+        let ctrl_p = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL);
+        handle_key(&mut app, ctrl_p, &KeyBindings::default());
+        assert_eq!(app.mode, Mode::Note, "Ctrl-P não pode abrir a paleta");
+        assert!(
+            app.flash_active().is_some_and(|f| f.contains('⚠')),
+            "aviso de dir não resolvido esperado, veio {:?}",
+            app.flash_active()
+        );
     }
 
     #[test]

@@ -15,14 +15,19 @@ use crate::todo::Task;
 mod autocomplete;
 mod bulk;
 mod chord;
+mod dispatch_draft;
 mod draft;
 mod draft_overlay;
 mod flash;
+mod journal;
 mod mutations;
+mod note_search;
 pub mod note_panel;
 pub mod palette;
 mod picker;
 mod prefs;
+pub mod projects;
+pub mod review;
 mod saved;
 mod selection;
 mod types;
@@ -36,6 +41,7 @@ pub use crate::core::History;
 pub use crate::core::filter::{ListDueBucket, ordered_unique};
 pub use autocomplete::{ActiveToken, AutocompleteTarget, TokenKind, active_token};
 pub use chord::Chord;
+pub use dispatch_draft::{DispatchBadge, DispatchCtx, instructions_empty};
 pub use draft::{DialogInputMode, DraftCursor, DraftState};
 pub use draft_overlay::{
     BuilderField, CalendarState, CalendarTarget, DraftOverlay, OverlayKind, PriorityChooserState,
@@ -43,9 +49,13 @@ pub use draft_overlay::{
     format_rec_value, recurrence_next_preview,
 };
 pub use flash::Flash;
+pub use journal::JournalEntry;
 pub use note_panel::NotePanel;
 pub use palette::CommandPaletteState;
 pub use prefs::{Layout, Prefs};
+pub use note_search::NoteSearchHit;
+pub use projects::ProjectRow;
+pub use review::{ReviewRow, ReviewStatus};
 pub use selection::Selection;
 pub use types::{
     AUTOCOMPLETE_CAP, AddOutcome, Density, FLASH_TTL, Filter, LEADER_WINDOW, Mode, SavedFilter,
@@ -153,21 +163,47 @@ pub struct App {
     pub advisor_links: Vec<(String, String)>,
     /// Objetivo salvo por projeto, lido do config (norte do ranking `p`).
     pub advisor_goals: Vec<(String, String)>,
+    /// Data (`YYYY-MM-DD`) da última revisão de cada `+projeto`, lida do
+    /// config. Ver [`review`](crate::app::review).
+    pub review_last: Vec<(String, String)>,
+    /// Cadência global da Review em dias, lida do config (`None` = default).
+    pub review_every_days: Option<u32>,
+    /// `+projeto`s arquivados explicitamente (visão Projects, `P`), lidos
+    /// do config. Ver [`projects`](crate::app::projects).
+    pub project_archived: Vec<String>,
+    pub project_known: Vec<String>,
+    pub(crate) project_cache: Vec<ProjectRow>,
+    pub(crate) project_cursor: usize,
+    pub(crate) project_detail: Option<projects::ProjectDetail>,
+    /// Estado da visão Journal (`Shift+J`) — ver
+    /// [`journal`](crate::app::journal).
+    pub(crate) journal_project: Option<String>,
+    pub(crate) journal_entries: Vec<JournalEntry>,
+    pub(crate) journal_cursor: usize,
+    /// `true` enquanto `note_panel` é o composer de uma entrada de journal
+    /// (não uma nota de tarefa real) — ver `main::handle_note`.
+    pub journal_compose: bool,
+    /// Cache da sessão da lista de projetos da visão Review.
+    pub(crate) review_cache: Vec<ReviewRow>,
+    pub(crate) review_cursor: usize,
+    /// `Some(projeto)` enquanto a `View::List` está filtrada pela Review —
+    /// muda o footer/status e faz `Esc` perguntar antes de sair.
+    pub(crate) reviewing_project: Option<String>,
+    /// Última query de busca em notas (`?query` na busca `/`) e seus
+    /// resultados — ver [`note_search`](crate::app::note_search).
+    pub(crate) note_search_query: String,
+    pub(crate) note_search_results: Vec<NoteSearchHit>,
+    pub(crate) note_search_cursor: usize,
+    /// Rolagem do painel de ajuda (`?`). `Cell` porque `render` só tem `&App`
+    /// (mesmo padrão de `view_scroll`/`NotePanel::scroll`): o próprio render
+    /// clampa contra o total de linhas e regrava o valor efetivo.
+    pub(crate) help_scroll: Cell<u16>,
     /// Cache da sessão das issues da visão Issues, e de qual repo/projeto vieram.
     pub(crate) issues: Vec<crate::advisor::github::IssueRow>,
     pub(crate) issues_repo: Option<String>,
     pub(crate) issues_project: Option<String>,
     /// Cursor próprio da visão Issues (as issues não são tarefas).
     pub(crate) issues_cursor: usize,
-    /// Cache da sessão dos cards da visão Kanban (board Project v2).
-    pub(crate) kanban: Vec<crate::advisor::kanban::KanbanCard>,
-    /// Metadados do board (ids de campos/opções), buscados no refresh.
-    pub(crate) kanban_meta: Option<crate::advisor::kanban::BoardMeta>,
-    /// Estado do agente herdr de cada card (paralelo a `kanban`), atualizado
-    /// no refresh. `None` = sem agente despachado (ou herdr indisponível).
-    pub(crate) kanban_agent_status: Vec<Option<String>>,
-    /// Cursor da visão Kanban sobre a ordem visível (coluna a coluna).
-    pub(crate) kanban_cursor: usize,
     /// The search string that was active when the `ff` picker opened, so
     /// cancelling (`Esc`) restores it instead of leaving the previewed
     /// filter applied. `None` outside `Mode::PickSavedFilter`.
@@ -199,6 +235,22 @@ pub struct App {
     pending_shell: Option<String>,
     /// In-TUI note editor. `Some` only while `Mode::Note` is active.
     pub note_panel: Option<NotePanel>,
+    /// `Some` enquanto o note panel edita um draft de despacho (`D`): muda o
+    /// footer e habilita `Tab` (agente) e `Ctrl-D` (despachar).
+    pub dispatch_ctx: Option<DispatchCtx>,
+    /// Estado por slug dos agentes despachados (badges da lista), atualizado
+    /// pelo poll periódico do herdr.
+    pub(crate) dispatch_status: std::collections::HashMap<String, dispatch_draft::DispatchBadge>,
+    /// Instante do último poll do herdr (throttle).
+    pub(crate) dispatch_poll_at: Option<std::time::Instant>,
+    /// Slug cujo agente acabou de concluir, aguardando confirmação para
+    /// completar as tarefas (`Mode::ConfirmDispatch`).
+    pub(crate) dispatch_done_pending: Option<String>,
+    /// Slugs cuja conclusão já foi oferecida (aceita ou recusada) — não
+    /// perguntar de novo.
+    pub(crate) dispatch_done_seen: std::collections::HashSet<String>,
+    /// Receiver do brief-builder em background (`Ctrl-P` no draft).
+    pub(crate) prompt_improver: Option<Receiver<Result<String, String>>>,
     /// Display-text → link-target registry for the OSC 8 overlay. The
     /// hyperlink pass (`ui::hyperlinks`) can only see the rendered text of an
     /// underlined run, so renderers that want a link target different from
@@ -257,6 +309,10 @@ impl App {
         let advisor_projects = cfg.advisor_projects.clone();
         let advisor_links = cfg.advisor_links.clone();
         let advisor_goals = cfg.advisor_goals.clone();
+        let review_last = cfg.review_last.clone();
+        let review_every_days = cfg.review_every_days;
+        let project_archived = cfg.project_archived.clone();
+        let project_known = cfg.project_known.clone();
         let mut app = Self {
             store,
             view: View::List,
@@ -280,11 +336,25 @@ impl App {
             advisor_projects,
             advisor_links,
             advisor_goals,
+            review_last,
+            review_every_days,
+            project_archived,
+            project_known,
+            project_cache: Vec::new(),
+            project_cursor: 0,
+            project_detail: None,
+            journal_project: None,
+            journal_entries: Vec::new(),
+            journal_cursor: 0,
+            journal_compose: false,
+            review_cache: Vec::new(),
+            review_cursor: 0,
+            reviewing_project: None,
+            note_search_query: String::new(),
+            note_search_results: Vec::new(),
+            note_search_cursor: 0,
+            help_scroll: Cell::new(0),
             issues: Vec::new(),
-            kanban: Vec::new(),
-            kanban_meta: None,
-            kanban_agent_status: Vec::new(),
-            kanban_cursor: 0,
             issues_repo: None,
             issues_project: None,
             issues_cursor: 0,
@@ -297,6 +367,12 @@ impl App {
             pending_editor_path: None,
             pending_shell: None,
             note_panel: None,
+            dispatch_ctx: None,
+            dispatch_status: std::collections::HashMap::new(),
+            dispatch_poll_at: None,
+            dispatch_done_pending: None,
+            dispatch_done_seen: std::collections::HashSet::new(),
+            prompt_improver: None,
             link_targets: std::cell::RefCell::new(std::collections::HashMap::new()),
             click_targets: std::cell::RefCell::new(Vec::new()),
             subtask_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
@@ -524,6 +600,12 @@ impl App {
         self.pending_editor_path = Some(path);
     }
 
+    /// Redireciona a base das notas (testes do binário; o config faz isso na
+    /// construção).
+    pub fn set_notes_dir(&mut self, dir: PathBuf) {
+        self.notes_dir = dir;
+    }
+
     pub fn notes_dir(&self) -> &PathBuf {
         &self.notes_dir
     }
@@ -728,9 +810,16 @@ impl App {
         self.draft.text().trim_start().starts_with('!')
     }
 
-    /// Trata o Enter no modo Search. Se o draft é `! <cmd>`, enfileira o comando
-    /// de shell e volta ao Normal; senão confirma a busca. Retorna `true` se um
-    /// comando foi enfileirado.
+    /// `true` se o texto do campo de busca é uma busca em notas (`?query`),
+    /// não uma busca de linha. Mesma razão do `search_is_shell`: suprime o
+    /// filtro ao vivo (grep em disco não deve rodar a cada tecla).
+    pub fn search_is_note_query(&self) -> bool {
+        self.draft.text().trim_start().starts_with('?')
+    }
+
+    /// Trata o Enter no modo Search. `! <cmd>` enfileira um comando de shell;
+    /// `?query` roda a busca full-text nas notas; senão confirma a busca de
+    /// linha. Retorna `true` se um comando de shell foi enfileirado.
     pub fn commit_search(&mut self) -> bool {
         if let Some(rest) = self.draft.text().trim_start().strip_prefix('!') {
             let cmd = rest.trim().to_string();
@@ -742,6 +831,17 @@ impl App {
             }
             self.queue_shell(cmd);
             return true;
+        }
+        if let Some(rest) = self.draft.text().trim_start().strip_prefix('?') {
+            let query = rest.trim().to_string();
+            self.draft_clear();
+            self.clear_search();
+            if query.is_empty() {
+                self.mode = Mode::Normal;
+                return false;
+            }
+            self.run_note_search(&query);
+            return false;
         }
         // Confirmação normal de busca: mantém o filtro, sai do modo.
         self.mode = Mode::Normal;
@@ -874,6 +974,10 @@ impl App {
         self.advisor_projects = new_cfg.advisor_projects.clone();
         self.advisor_links = new_cfg.advisor_links.clone();
         self.advisor_goals = new_cfg.advisor_goals.clone();
+        self.review_last = new_cfg.review_last.clone();
+        self.review_every_days = new_cfg.review_every_days;
+        self.project_archived = new_cfg.project_archived.clone();
+        self.project_known = new_cfg.project_known.clone();
         self.week_start = new_cfg.week_start.unwrap_or(WeekStart::Sunday);
         self.recompute_visible();
     }
@@ -1020,267 +1124,6 @@ impl App {
         self.mode = Mode::Normal;
     }
 
-    /// Cards da visão Kanban (somente leitura).
-    pub fn kanban(&self) -> &[crate::advisor::kanban::KanbanCard] {
-        &self.kanban
-    }
-
-    /// Entra na visão Kanban (`K`) e busca os cards do board.
-    pub fn enter_kanban_view(&mut self) {
-        self.set_view(View::Kanban);
-        self.mode = Mode::Kanban;
-        self.refresh_kanban();
-    }
-
-    /// Sai da visão Kanban de volta para a Lista (Normal).
-    pub fn exit_kanban_view(&mut self) {
-        self.set_view(View::List);
-        self.mode = Mode::Normal;
-    }
-
-    /// (Re)busca os cards e os metadados do board para a visão Kanban
-    /// (tecla `r`). Sem metadados a visão segue read-only (H/L/a avisam).
-    pub fn refresh_kanban(&mut self) {
-        match crate::advisor::kanban::fetch_board() {
-            Ok(cards) => {
-                let n = cards.len();
-                self.kanban = cards;
-                self.kanban_cursor = self.kanban_cursor.min(n.saturating_sub(1));
-                self.kanban_meta = crate::advisor::kanban::fetch_board_meta().ok();
-                self.flash(format!("{n} {}", crate::brand::tr("cards", "cards")));
-                // Depois do flash de contagem: se o herdr estiver fora do ar,
-                // o aviso dele é o que deve ficar visível.
-                self.refresh_kanban_agent_status();
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("board fetch failed", "falha ao buscar o board")
-            )),
-        }
-    }
-
-    /// Estado do agente herdr por card. Se nenhum agente `issue-*` existe
-    /// (ou o herdr está fora do PATH), evita N consultas e zera os badges;
-    /// a indisponibilidade do herdr vira um flash único, não um erro.
-    fn refresh_kanban_agent_status(&mut self) {
-        use crate::advisor::dispatch;
-        self.kanban_agent_status = match dispatch::dispatched_count() {
-            Ok(0) => vec![None; self.kanban.len()],
-            Ok(_) => self
-                .kanban
-                .iter()
-                .map(|c| dispatch::agent_status(c.number))
-                .collect(),
-            Err(_) => {
-                self.flash(crate::brand::tr(
-                    "herdr unavailable — no agent badges",
-                    "herdr indisponível — sem estado dos agentes",
-                ));
-                vec![None; self.kanban.len()]
-            }
-        };
-    }
-
-    /// Badge do agente do card `idx` (`▶ working`, `⚠ blocked`, ...), se há
-    /// agente despachado. Símbolo+texto, nunca só cor.
-    pub fn kanban_agent_badge(&self, idx: usize) -> Option<String> {
-        let status = self.kanban_agent_status.get(idx)?.as_deref()?;
-        let symbol = match status {
-            "working" => "▶",
-            "blocked" => "⚠",
-            "idle" => "⏸",
-            _ => "·",
-        };
-        Some(format!("{symbol} {status}"))
-    }
-
-    /// Índices dos cards na ordem visível do board (coluna a coluna), para o
-    /// cursor e a UI concordarem sobre o que é "o próximo card".
-    pub fn kanban_visible_order(&self) -> Vec<usize> {
-        let mut order = Vec::with_capacity(self.kanban.len());
-        for col in crate::advisor::kanban::COLUMNS {
-            order.extend(
-                self.kanban
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, c)| c.status == col)
-                    .map(|(i, _)| i),
-            );
-        }
-        order
-    }
-
-    /// Posição do cursor da visão Kanban (na ordem visível).
-    pub fn kanban_cursor(&self) -> usize {
-        self.kanban_cursor
-    }
-
-    /// Move o cursor do Kanban (`j`/`k`) pela ordem visível.
-    pub fn kanban_step(&mut self, down: bool) {
-        let n = self.kanban_visible_order().len();
-        if n == 0 {
-            return;
-        }
-        self.kanban_cursor = if down {
-            (self.kanban_cursor + 1).min(n - 1)
-        } else {
-            self.kanban_cursor.saturating_sub(1)
-        };
-    }
-
-    /// Move o card selecionado para a coluna anterior/seguinte (`H`/`L`).
-    /// A API confirma primeiro; o estado local só muda em caso de sucesso.
-    pub fn kanban_move_status(&mut self, forward: bool) {
-        use crate::advisor::kanban::COLUMNS;
-        // A checagem de metadados fica em `kanban_set_status`.
-        let order = self.kanban_visible_order();
-        let Some(&idx) = order.get(self.kanban_cursor) else {
-            return;
-        };
-        let card = &self.kanban[idx];
-        let cur = COLUMNS.iter().position(|c| *c == card.status).unwrap_or(0);
-        let next = if forward {
-            (cur + 1).min(COLUMNS.len() - 1)
-        } else {
-            cur.saturating_sub(1)
-        };
-        if next == cur {
-            return;
-        }
-        self.kanban_set_status(idx, COLUMNS[next]);
-    }
-
-    /// Seta o Status do card `idx` para `target` via API; só muda o estado
-    /// local (e o cursor, que segue o card) depois que a API confirma.
-    fn kanban_set_status(&mut self, idx: usize, target: &str) {
-        let Some(meta) = self.kanban_meta.clone() else {
-            self.flash(crate::brand::tr(
-                "board metadata missing — press r",
-                "sem metadados do board — aperte r",
-            ));
-            return;
-        };
-        let Some((opt_id, _)) = meta.status_options.iter().find(|(_, n)| n == target) else {
-            self.flash(format!(
-                "{}: {target}",
-                crate::brand::tr("column missing on board", "coluna inexistente no board")
-            ));
-            return;
-        };
-        let card = &self.kanban[idx];
-        match crate::advisor::kanban::set_item_field(&card.item_id, &meta.status_field, opt_id) {
-            Ok(()) => {
-                let number = self.kanban[idx].number;
-                self.kanban[idx].status = target.to_string();
-                // O cursor segue o card para a nova coluna.
-                if let Some(pos) = self.kanban_visible_order().iter().position(|&i| i == idx) {
-                    self.kanban_cursor = pos;
-                }
-                self.flash(format!("#{number} → {target}"));
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("board update failed", "falha ao atualizar o board")
-            )),
-        }
-    }
-
-    /// Despacha o card selecionado (`d`): exige Agent definido, respeita a
-    /// fila (máx. [`MAX_DISPATCHED`](crate::advisor::dispatch::MAX_DISPATCHED))
-    /// e, em caso de sucesso, move o card para In Progress.
-    pub fn kanban_dispatch(&mut self) {
-        use crate::advisor::dispatch;
-        let order = self.kanban_visible_order();
-        let Some(&idx) = order.get(self.kanban_cursor) else {
-            return;
-        };
-        let card = self.kanban[idx].clone();
-        if card.agent.is_empty() {
-            self.flash(crate::brand::tr(
-                "no agent — press a to set one",
-                "sem agente — defina com a",
-            ));
-            return;
-        }
-        if dispatch::is_dispatched(card.number) {
-            self.flash(format!(
-                "issue-{} {}",
-                card.number,
-                crate::brand::tr("already running", "já em execução")
-            ));
-            return;
-        }
-        match dispatch::dispatched_count() {
-            Ok(n) if n >= dispatch::MAX_DISPATCHED => {
-                self.flash(format!(
-                    "{} — {n} {}",
-                    crate::brand::tr("queue full", "fila cheia"),
-                    crate::brand::tr("agents active", "agentes ativos")
-                ));
-                return;
-            }
-            Ok(_) => {}
-            Err(e) => {
-                self.flash(format!("herdr: {e}"));
-                return;
-            }
-        }
-        match dispatch::dispatch(&card) {
-            Ok(()) => {
-                self.kanban_set_status(idx, "In Progress");
-                if idx < self.kanban_agent_status.len() {
-                    self.kanban_agent_status[idx] = crate::advisor::dispatch::agent_status(card.number);
-                }
-                self.flash(format!(
-                    "▶ issue-{} {}",
-                    card.number,
-                    crate::brand::tr("dispatched", "despachado")
-                ));
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("dispatch failed", "falha no dispatch")
-            )),
-        }
-    }
-
-    /// Cicla o Agent do card selecionado (`a`) pelas opções do board.
-    /// A API confirma primeiro; o estado local só muda em caso de sucesso.
-    pub fn kanban_cycle_agent(&mut self) {
-        let Some(meta) = self.kanban_meta.clone() else {
-            self.flash(crate::brand::tr(
-                "board metadata missing — press r",
-                "sem metadados do board — aperte r",
-            ));
-            return;
-        };
-        if meta.agent_options.is_empty() {
-            return;
-        }
-        let order = self.kanban_visible_order();
-        let Some(&idx) = order.get(self.kanban_cursor) else {
-            return;
-        };
-        let card = &self.kanban[idx];
-        let cur = meta.agent_options.iter().position(|(_, n)| *n == card.agent);
-        let next = match cur {
-            Some(i) => (i + 1) % meta.agent_options.len(),
-            None => 0,
-        };
-        let (opt_id, name) = meta.agent_options[next].clone();
-        match crate::advisor::kanban::set_item_field(&card.item_id, &meta.agent_field, &opt_id) {
-            Ok(()) => {
-                let number = self.kanban[idx].number;
-                self.kanban[idx].agent = name.clone();
-                self.flash(format!("#{number} · {name}"));
-            }
-            Err(e) => self.flash(format!(
-                "{}: {e}",
-                crate::brand::tr("board update failed", "falha ao atualizar o board")
-            )),
-        }
-    }
-
     /// (Re)busca as issues abertas de um repo para a visão Issues.
     pub fn refresh_issues(&mut self, repo: &str) {
         match crate::advisor::github::fetch_issues(repo) {
@@ -1318,23 +1161,59 @@ impl App {
     /// Importa a issue selecionada para o todo.txt como tarefa local, marcada
     /// com o token `gh:owner/repo#N` para rastrear a origem.
     pub fn import_selected_issue(&mut self) {
-        let repo = match self.issues_repo.clone() {
-            Some(r) => r,
-            None => return,
-        };
+        if let Some((_abs, number)) = self.import_selected_issue_inner() {
+            self.flash(format!(
+                "{} #{number}",
+                crate::brand::tr("imported issue", "issue importada"),
+            ));
+        }
+    }
+
+    /// Núcleo compartilhado do import: monta a linha e grava no store.
+    /// Retorna o índice absoluto da tarefa nova (em `store.tasks()`) e o
+    /// número da issue, ou `None` (e já flasha o motivo) se não deu certo.
+    fn import_selected_issue_inner(&mut self) -> Option<(usize, u64)> {
+        let repo = self.issues_repo.clone()?;
         let project = self.issues_project.clone();
-        let Some(row) = self.issues.get(self.issues_cursor).cloned() else {
-            return;
-        };
+        let row = self.issues.get(self.issues_cursor).cloned()?;
         let line = issue_import_line(&row, project.as_deref(), &repo);
         match self.store.add_line(&line) {
-            crate::core::AddOutcome::Added { .. } => self.flash(format!(
-                "{} #{}",
-                crate::brand::tr("imported issue", "issue importada"),
-                row.number
-            )),
-            _ => self.flash(crate::brand::tr("import failed", "falha ao importar")),
+            crate::core::AddOutcome::Added { abs } => Some((abs, row.number)),
+            _ => {
+                self.flash(crate::brand::tr("import failed", "falha ao importar"));
+                None
+            }
         }
+    }
+
+    /// `Shift+D` na visão Issues: importa a issue sob o cursor pro todo.txt
+    /// e já abre o Draft de Despacho para ela, compondo `import_selected_issue`
+    /// e `open_dispatch_draft` (ambos já existentes) sem tela nova — fecha o
+    /// loop advisor→despacho (a issue #1 do ranking já fica no topo do
+    /// cursor depois de `g`).
+    pub fn dispatch_selected_issue(&mut self) {
+        let Some((abs, _number)) = self.import_selected_issue_inner() else {
+            return;
+        };
+        self.exit_issues_view();
+        self.selection.clear();
+        self.selection.toggle(abs);
+        self.open_dispatch_draft();
+    }
+
+    /// Zera a rolagem do painel de ajuda (chamado ao abrir com `?`, pra
+    /// sempre reabrir do topo em vez de lembrar a posição de uma vez anterior).
+    pub fn reset_help_scroll(&mut self) {
+        self.help_scroll.set(0);
+    }
+
+    /// Rola o painel de ajuda `amount` linhas. O clamp contra o total real de
+    /// linhas acontece no próximo `render` (mesmo padrão de `view_scroll`);
+    /// aqui só soma/subtrai livremente, saturando em 0.
+    pub fn help_scroll_step(&mut self, down: bool, amount: u16) {
+        let cur = self.help_scroll.get();
+        self.help_scroll
+            .set(if down { cur.saturating_add(amount) } else { cur.saturating_sub(amount) });
     }
 
     /// Reconcile against disk and drain the inbox. Returns `true` when it is

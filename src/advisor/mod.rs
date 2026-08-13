@@ -4,12 +4,12 @@
 //! Design constraints (see the fork docs): the advisor is **off by default**
 //! and fully decoupled — the rest of Prumo works with zero LLM dependency.
 //! It never mutates the todo file; it prints a suggestion for the user to
-//! review and apply by hand. The API key (Claude) comes from an environment
-//! variable, never the config file.
+//! review and apply by hand. The Claude backend shells out to the Claude
+//! Code CLI, which authenticates via the user's subscription (OAuth) — no
+//! API key is read from the environment or the config file.
 
 pub mod dispatch;
 pub mod github;
-pub mod kanban;
 
 use std::process::Command;
 
@@ -40,7 +40,7 @@ impl Backend {
             Self::Ollama => "llama3.2",
             // Per the Anthropic guidance, default to the flagship Opus model
             // unless the user names another via advisor_model.
-            Self::Claude => "claude-opus-4-8",
+            Self::Claude => "opus",
         }
     }
 }
@@ -202,31 +202,34 @@ fn call_ollama(model: &str, prompt: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("could not parse Ollama response: {out}"))
 }
 
+/// Shells out to the Claude Code CLI (`claude -p`) instead of the raw HTTP
+/// API: the CLI authenticates via the user's subscription (OAuth login),
+/// so no API key is needed or read. `ANTHROPIC_API_KEY` is explicitly
+/// stripped from the child env — when present, the CLI prefers it over the
+/// subscription and burns API credits.
 fn call_claude(model: &str, prompt: &str) -> Result<String> {
-    let key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
-        anyhow!(
-            "ANTHROPIC_API_KEY is not set. Export it in your shell to use the \
-             Claude backend (the key is never read from config.toml)."
-        )
-    })?;
-    let body = serde_json_object(&[
-        ("model", JsonVal::Str(model)),
-        ("max_tokens", JsonVal::Num(1024)),
-        (
-            "messages",
-            JsonVal::Raw(&serde_json_messages("user", prompt)),
-        ),
-    ]);
-    let headers = [
-        format!("x-api-key: {key}"),
-        "anthropic-version: 2023-06-01".to_string(),
-        "content-type: application/json".to_string(),
-    ];
-    let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
-    let out = curl_post("https://api.anthropic.com/v1/messages", &header_refs, &body)
-        .map_err(|e| anyhow!("Claude request failed: {e}"))?;
-    // Response: {"content": [{"type":"text","text":"..."}], ...}.
-    extract_claude_text(&out).ok_or_else(|| anyhow!("could not parse Claude response: {out}"))
+    let out = Command::new("claude")
+        .args(["-p", prompt, "--model", model])
+        .env_remove("ANTHROPIC_API_KEY")
+        // Called from inside the TUI's raw-mode terminal: without this the
+        // child inherits that same stdin and can hang waiting on input that
+        // will never arrive (the user is typing into Prumo, not into it).
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|e| {
+            anyhow!("could not run `claude` ({e}). Install Claude Code and run `/login` once.")
+        })?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(anyhow!("`claude -p` failed: {}", err.trim()));
+    }
+    let text = String::from_utf8(out.stdout)
+        .map_err(|e| anyhow!("claude output is not UTF-8: {e}"))?;
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Err(anyhow!("`claude -p` returned empty output"));
+    }
+    Ok(text)
 }
 
 fn curl_post(url: &str, headers: &[&str], body: &str) -> Result<String, String> {
@@ -255,10 +258,7 @@ fn curl_post(url: &str, headers: &[&str], body: &str) -> Result<String, String> 
 
 enum JsonVal<'a> {
     Str(&'a str),
-    Num(i64),
     Bool(bool),
-    /// Pre-serialized JSON, spliced in verbatim.
-    Raw(&'a str),
 }
 
 fn serde_json_object(fields: &[(&str, JsonVal)]) -> String {
@@ -270,20 +270,11 @@ fn serde_json_object(fields: &[(&str, JsonVal)]) -> String {
         out.push_str(&format!("\"{k}\":"));
         match v {
             JsonVal::Str(s) => out.push_str(&json_quote(s)),
-            JsonVal::Num(n) => out.push_str(&n.to_string()),
             JsonVal::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-            JsonVal::Raw(r) => out.push_str(r),
         }
     }
     out.push('}');
     out
-}
-
-fn serde_json_messages(role: &str, content: &str) -> String {
-    format!(
-        "[{{\"role\":\"{role}\",\"content\":{}}}]",
-        json_quote(content)
-    )
 }
 
 /// Escape a string as a JSON string literal (with surrounding quotes).
@@ -315,14 +306,6 @@ pub fn extract_json_string(body: &str, key: &str) -> Option<String> {
     let after = &rest[colon + 1..];
     let q = after.find('"')?;
     read_json_string_from(&after[q..])
-}
-
-/// The Claude response nests the text under `content[0].text`. Scan for the
-/// first `"text"` field after a `"content"` key.
-pub fn extract_claude_text(body: &str) -> Option<String> {
-    let content_at = body.find("\"content\"")?;
-    let after_content = &body[content_at..];
-    extract_json_string(after_content, "text")
 }
 
 /// Read a JSON string literal starting at the opening quote, unescaping the
@@ -390,7 +373,7 @@ mod tests {
         assert_eq!(Backend::parse("Claude"), Some(Backend::Claude));
         assert_eq!(Backend::parse("gpt"), None);
         assert_eq!(Backend::Ollama.default_model(), "llama3.2");
-        assert_eq!(Backend::Claude.default_model(), "claude-opus-4-8");
+        assert_eq!(Backend::Claude.default_model(), "opus");
     }
 
     #[test]
@@ -435,15 +418,6 @@ mod tests {
         assert_eq!(
             extract_json_string(body, "response").as_deref(),
             Some("faça a tarefa 1")
-        );
-    }
-
-    #[test]
-    fn extract_claude_text_from_content() {
-        let body = r#"{"id":"msg_1","content":[{"type":"text","text":"1. Pagar aluguel"}],"model":"claude-opus-4-8"}"#;
-        assert_eq!(
-            extract_claude_text(body).as_deref(),
-            Some("1. Pagar aluguel")
         );
     }
 

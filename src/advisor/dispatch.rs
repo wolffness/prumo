@@ -1,32 +1,16 @@
-//! Dispatch de agentes a partir do Kanban: dado um card (repo + issue +
-//! Agent), busca o entry prompt na issue, resolve o diretório local do repo
-//! e dispara `herdr agent start issue-<n>` — o herdr é o terminal do
-//! usuário, então a execução nasce visível e supervisionável.
+//! Dispatch de agentes: dado um prompt (vindo do draft de despacho), um
+//! agente e um diretório de projeto, dispara `herdr agent start
+//! dispatch-<slug>` — o herdr é o terminal do usuário, então a execução
+//! nasce visível e supervisionável.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Result, anyhow};
 
-use super::kanban::KanbanCard;
-
-/// Máximo de agentes despachados simultaneamente (decisão do usuário).
-pub const MAX_DISPATCHED: usize = 3;
-
-/// Nome do agente herdr para uma issue (`issue-<n>`).
-pub fn agent_name(number: u64) -> String {
-    format!("issue-{number}")
-}
-
-/// Extrai o bloco ```text da seção `## Entry prompt` do body de uma issue.
-/// O contrato de tarefa (brain/templates/issue-tarefa.md) garante a seção.
-/// Ancorado no início de linha: o texto da issue pode MENCIONAR
-/// "## Entry prompt" em prosa (ex.: critérios de aceite) sem confundir.
-pub fn extract_entry_prompt(body: &str) -> Option<String> {
-    let section = body.split("\n## Entry prompt").nth(1)?;
-    let fence = section.split("```text").nth(1)?;
-    let prompt = fence.split("```").next()?.trim();
-    (!prompt.is_empty()).then(|| prompt.to_string())
+/// Nome do agente herdr para um draft (`dispatch-<slug>`).
+pub fn agent_name(slug: &str) -> String {
+    format!("dispatch-{slug}")
 }
 
 /// Argv do agente: sonnet/opus/fable → `claude --model <x>`; codex → `codex`;
@@ -61,7 +45,7 @@ pub fn repo_dir(repo: &str) -> Result<PathBuf> {
 }
 
 /// Primeiro subdiretório de `base` cujo nome bate com `name` ignorando caixa.
-fn find_dir_case_insensitive(base: &std::path::Path, name: &str) -> Option<PathBuf> {
+fn find_dir_case_insensitive(base: &Path, name: &str) -> Option<PathBuf> {
     let entries = std::fs::read_dir(base).ok()?;
     let wanted = name.to_lowercase();
     entries
@@ -73,17 +57,6 @@ fn find_dir_case_insensitive(base: &std::path::Path, name: &str) -> Option<PathB
                     .map(|f| f.to_string_lossy().to_lowercase() == wanted)
                     .unwrap_or(false)
         })
-}
-
-/// Busca o entry prompt da issue via `gh`.
-pub fn fetch_entry_prompt(repo: &str, number: u64) -> Result<String> {
-    let num = number.to_string();
-    let body = super::github::gh(&[
-        "issue", "view", &num, "-R", repo, "--json", "body", "--jq", ".body",
-    ])?;
-    extract_entry_prompt(&body).ok_or_else(|| {
-        anyhow!("issue {repo}#{number} sem seção `## Entry prompt` com bloco ```text")
-    })
 }
 
 /// Executa um subcomando do `herdr`, devolvendo o stdout (espelha o `gh`).
@@ -98,23 +71,15 @@ pub(crate) fn herdr(args: &[&str]) -> Result<String> {
     String::from_utf8(out.stdout).map_err(|e| anyhow!("saída do herdr não é UTF-8: {e}"))
 }
 
-/// Quantos agentes `issue-*` estão ativos no herdr. Contagem por substring
-/// no JSON do `agent list` — os agentes despachados são sempre nomeados
-/// `issue-<n>`, e o campo `name` só existe para agentes nomeados.
-pub fn dispatched_count() -> Result<usize> {
-    let out = herdr(&["agent", "list"])?;
-    Ok(out.matches("\"name\":\"issue-").count())
+/// O agente `dispatch-<slug>` já existe no herdr?
+pub fn is_dispatched(slug: &str) -> bool {
+    herdr(&["agent", "get", &agent_name(slug)]).is_ok()
 }
 
-/// O agente `issue-<n>` já existe no herdr?
-pub fn is_dispatched(number: u64) -> bool {
-    herdr(&["agent", "get", &agent_name(number)]).is_ok()
-}
-
-/// Estado do agente `issue-<n>` no herdr (`working`/`blocked`/`idle`/...),
-/// ou `None` se não existe (ou o herdr está indisponível).
-pub fn agent_status(number: u64) -> Option<String> {
-    let out = herdr(&["agent", "get", &agent_name(number)]).ok()?;
+/// Estado do agente `dispatch-<slug>` no herdr (`working`/`blocked`/`idle`/
+/// ...), ou `None` se não existe (ou o herdr está indisponível).
+pub fn agent_status(slug: &str) -> Option<String> {
+    let out = herdr(&["agent", "get", &agent_name(slug)]).ok()?;
     extract_agent_status(&out)
 }
 
@@ -125,13 +90,11 @@ pub fn extract_agent_status(json: &str) -> Option<String> {
     (!status.is_empty()).then(|| status.to_string())
 }
 
-/// Dispara o agente do card: `herdr agent start issue-<n> --cwd <repo dir>
-/// --no-focus -- <argv do agente>`. O chamador decide fila/estado.
-pub fn dispatch(card: &KanbanCard) -> Result<()> {
-    let prompt = fetch_entry_prompt(&card.repo, card.number)?;
-    let dir = repo_dir(&card.repo)?;
-    let name = agent_name(card.number);
-    let argv = agent_argv(&card.agent, &prompt);
+/// Dispara o agente do draft: `herdr agent start dispatch-<slug> --cwd <dir>
+/// --no-focus -- <argv do agente>`.
+pub fn dispatch(slug: &str, agent: &str, dir: &Path, prompt: &str) -> Result<()> {
+    let name = agent_name(slug);
+    let argv = agent_argv(agent, prompt);
     let dir_s = dir.to_string_lossy().to_string();
     let mut args: Vec<&str> = vec!["agent", "start", &name, "--cwd", &dir_s, "--no-focus", "--"];
     args.extend(argv.iter().map(|s| s.as_str()));
@@ -140,30 +103,9 @@ pub fn dispatch(card: &KanbanCard) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn extracts_entry_prompt_block() {
-        let body = "## Objetivo\nx\n\n## Entry prompt\n```text\nLeia a issue.\nFaça y.\n```\n\n## Fechamento\n";
-        assert_eq!(
-            extract_entry_prompt(body).as_deref(),
-            Some("Leia a issue.\nFaça y.")
-        );
-    }
-
-    #[test]
-    fn entry_prompt_missing_or_empty_is_none() {
-        assert_eq!(extract_entry_prompt("## Objetivo\nsem prompt"), None);
-        assert_eq!(extract_entry_prompt("x\n## Entry prompt\n```text\n\n```"), None);
-    }
-
-    #[test]
-    fn prose_mention_of_the_section_does_not_confuse() {
-        // Menção em prosa (com fence antes E depois) + seção real depois.
-        let body = "## Critérios\n- Extrai o bloco ```text da seção \"## Entry prompt\" do body\n\n## Entry prompt\n```text\nprompt real\n```\n";
-        assert_eq!(extract_entry_prompt(body).as_deref(), Some("prompt real"));
-    }
 
     #[test]
     fn maps_agents_to_argv() {
@@ -186,12 +128,12 @@ mod tests {
 
     #[test]
     fn agent_name_format() {
-        assert_eq!(agent_name(42), "issue-42");
+        assert_eq!(agent_name("csv-export"), "dispatch-csv-export");
     }
 
     #[test]
     fn extracts_agent_status_from_json() {
-        let json = r#"{"result":{"agent":{"agent_status":"working","name":"issue-2"}}}"#;
+        let json = r#"{"result":{"agent":{"agent_status":"working","name":"dispatch-x"}}}"#;
         assert_eq!(extract_agent_status(json).as_deref(), Some("working"));
         assert_eq!(extract_agent_status("{}"), None);
     }

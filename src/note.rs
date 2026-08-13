@@ -147,7 +147,7 @@ fn kv_from_raw(raw: &str, key: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn slugify(s: &str) -> String {
+pub fn slugify(s: &str) -> String {
     let mut out = String::new();
     let mut last_dash = false;
     for ch in s.chars() {

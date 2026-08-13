@@ -5,44 +5,44 @@ expression: buffer_to_text(&buf)
  FILTERS                   ▶▮◀ /tmp/tuxedo-snapshot.txt  •  15 tas DETAIL                           
      ┌ tuxedo · help ─────────────────────────────────────────────────────────────────────────┐     
  PROJ│  NAVIGATION                                  VIEW                                      │     
-   +w│    j / ↓             next task                 /                 fuzzy search          │     
+   +w│    j / ↓             next task                 /                 fuzzy search (?query: │     
    +h│    k / ↑             previous task             fp / fc           filter project/context│     
    +f│    gg                first task                ff / fs           saved filter pick/save│     
    +h│    G                 last task                 S                 cycle sort            │     
    +l│    Ctrl-d / Ctrl-u   page down / up            v                 visual / multi-select │     
    +p│                                                l                 list view             │     
    +t│  EDITING                                       a                 archive view          │     
-     │    n                 new task                  A                 archive completed     │     
- CONT│    e                 edit line (normal)        H                 show done in list     │     
-   @e│    i                 edit line (insert)        F                 show future in list   │     
-   @h│    r                 reschedule task           [ / ]             toggle filter / detail│     
-   @l│    x                 complete → archive        T                 cycle theme           │     
-   @p│    dd                delete task               D                 cycle density         │     
-     │    p                 cycle priority A→B→C→·    L                 toggle line numbers   │     
-     │    c                 add/remove context                                                │     
-     │    +                 add project             NOTES & FILES                             │     
-     │    yy                copy line to clipboard    m / N             note panel (in-app)   │     
-     │    yb                copy body only              i / Esc         panel: write / back·cl│     
-     │    u                 undo                        Shift+arrows    panel: select text    │     
-     │                                                  Del/Backspace   panel: delete selectio│     
-     │  SYSTEM                                          Space / n       panel: toggle / new su│     
-     │    : / Ctrl-P        command palette             Ctrl-S / o      panel: save / $EDITOR │     
-     │    s                 share capture QR          o / O             open / create note in │     
-     │    ? / ,             help / settings           t                 attach file (drag or p│     
-     │    q                 quit                      Enter             open attachments      │     
+     │    n                 new task                  R                 review projects       │     
+ CONT│    e                 edit line (normal)        P                 all projects · x archi│     
+   @e│    i                 edit line (insert)        Shift-J           project journal · n ne│     
+   @h│    r                 reschedule task           A                 archive completed     │     
+   @l│    x                 complete → archive        H                 show done in list     │     
+   @p│    dd                delete task               F                 show future in list   │     
+     │    p                 cycle priority A→B→C→·    [ / ]             toggle filter / detail│     
+     │    c                 add/remove context        T                 cycle theme           │     
+     │    +                 add project               zd                cycle density         │     
+     │    yy                copy line to clipboard    L                 toggle line numbers   │     
+     │    yb                copy body only                                                    │     
+     │    u                 undo                    NOTES & FILES                             │     
+     │                                                m / N             note panel (in-app)   │     
+     │  SYSTEM                                          i / Esc         panel: write / back·cl│     
+     │    : / Ctrl-P        command palette             Shift+arrows    panel: select text    │     
+     │    s                 share capture QR            Del/Backspace   panel: delete selectio│     
+     │    ? / ,             help / settings             Space / n       panel: toggle / new su│     
+     │    q                 quit                        Ctrl-S / o      panel: save / $EDITOR │     
+     │                                                o / O             open / create note in │     
+     │                                                t                 attach file (drag or p│     
+     │                                                Enter             open attachments      │     
      │                                                                                        │     
      │                                              ADVISOR & SHELL                           │     
      │                                                I                 GitHub issues view    │     
-     │                                                  in view: g      AI rank by goal       │     
-     │                                                ! advisor on/off +penable/disable per pr│     
+     │                                                  in view: g · D  rank by goal (AI) · di│     
+     │                                                D                 dispatch draft (select│     
+     │                                                  in draft: /prompt · /go · /codex make │     
+     │                                                  shortcuts: Ctrl-P · Ctrl-D · Tab brief│     
+     │                                                ! advisor on/off +p enable/disable per p│     
      │                                                ! advisor link    link a GitHub repo    │     
-     │                                                ! advisor goal +p set the ranking goal  │     
-     │                                                / then ! cmd      run a shell command   │     
-     │────────────────────────────────────────────────────────────────────────────────────────│     
-     │  FORMAT                                                                                │     
-     │    (A)               priority A-Z              due:YYYY-MM-DD    due date              │     
-     │    YYYY-MM-DD        creation / done date      rec:Nu            recur (u in d/w/m/y/b)│     
-     │    +project          project tag(s)            rec:+Nu           strict: anchor on due:│     
+     │ j/k scroll ↓  · ? close                                                                │     
      └────────────────────────────────────────────────────────────────────────────────────────┘     
                                                                                                     
- HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo4
+ HELP   ? close help                                  15 open · 2026-05-06 · tuxedo 2026.7.1-prumo5

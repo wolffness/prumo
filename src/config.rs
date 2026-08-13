@@ -54,8 +54,9 @@ pub struct Config {
     pub advisor: Option<bool>,
     /// Advisor LLM backend: `ollama` (default, local) or `claude`.
     pub advisor_backend: Option<String>,
-    /// Advisor model override; defaults per backend when unset. The API key
-    /// (for cloud backends) is read from the environment, never from here.
+    /// Advisor model override; defaults per backend when unset. The Claude
+    /// backend uses the Claude Code CLI's own login (subscription OAuth);
+    /// no API key is involved.
     pub advisor_model: Option<String>,
     /// Vínculos projeto→repo do advisor. Cada par `(projeto, "owner/repo")`
     /// liga um projeto do todo.txt a um repositório do GitHub. Serializado
@@ -68,6 +69,19 @@ pub struct Config {
     /// Objetivo salvo por projeto — norte para o ranking de issues por
     /// importância. Serializado como `advisor_goal.<nome> = <texto>`.
     pub advisor_goals: Vec<(String, String)>,
+    /// Data (`YYYY-MM-DD`) da última revisão de cada `+projeto` (visão
+    /// Review, tecla `R`). Serializado como `review_last.<nome> = <data>`.
+    pub review_last: Vec<(String, String)>,
+    /// Cadência global da Review em dias — um projeto fica "devido" quando
+    /// `hoje - review_last[projeto] >= review_every_days` (ou sempre devido
+    /// se nunca revisado). Serializado como `review_every_days = <N>`.
+    pub review_every_days: Option<u32>,
+    /// `+projeto`s arquivados explicitamente (visão Projects, tecla `P`,
+    /// `x` arquiva/desarquiva) — sobrevivem sem tarefa aberta até serem
+    /// desarquivados. Serializado como `project_archived.<nome> = on`.
+    pub project_archived: Vec<String>,
+    /// Projetos já vistos pelo Prumo, preservados mesmo sem tarefas.
+    pub project_known: Vec<String>,
 }
 
 impl Config {
@@ -232,6 +246,39 @@ fn parse(s: &str) -> Config {
                 }
             }
             _ if k
+                .strip_prefix("project_archived.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k
+                    .strip_prefix("project_archived.")
+                    .expect("checked above")
+                    .trim()
+                    .to_string();
+                // Só entra no set quando arquivado; `off`/falsy desarquiva.
+                let on = parse_bool(v).unwrap_or(false);
+                let pos = c.project_archived.iter().position(|p| p == &name);
+                match (on, pos) {
+                    (true, None) => c.project_archived.push(name),
+                    (false, Some(i)) => {
+                        c.project_archived.remove(i);
+                    }
+                    _ => {}
+                }
+            }
+            _ if k
+                .strip_prefix("project_known.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k
+                    .strip_prefix("project_known.")
+                    .expect("checked above")
+                    .trim()
+                    .to_string();
+                if parse_bool(v).unwrap_or(false) && !c.project_known.contains(&name) {
+                    c.project_known.push(name);
+                }
+            }
+            _ if k
                 .strip_prefix("advisor_link.")
                 .is_some_and(|n| !n.trim().is_empty()) =>
             {
@@ -243,6 +290,18 @@ fn parse(s: &str) -> Config {
                 match c.advisor_links.iter_mut().find(|(n, _)| n.as_str() == name) {
                     Some((_, r)) => *r = repo,
                     None => c.advisor_links.push((name.to_string(), repo)),
+                }
+            }
+            "review_every_days" => c.review_every_days = v.parse().ok(),
+            _ if k
+                .strip_prefix("review_last.")
+                .is_some_and(|n| !n.trim().is_empty()) =>
+            {
+                let name = k.strip_prefix("review_last.").expect("checked above").trim();
+                let date = v.trim().to_string();
+                match c.review_last.iter_mut().find(|(n, _)| n.as_str() == name) {
+                    Some((_, d)) => *d = date,
+                    None => c.review_last.push((name.to_string(), date)),
                 }
             }
             _ if k
@@ -327,6 +386,18 @@ fn serialize(c: &Config) -> String {
     for (project, goal) in &c.advisor_goals {
         let _ = writeln!(out, "advisor_goal.{project} = {goal}");
     }
+    if let Some(v) = c.review_every_days {
+        let _ = writeln!(out, "review_every_days = {v}");
+    }
+    for (project, date) in &c.review_last {
+        let _ = writeln!(out, "review_last.{project} = {date}");
+    }
+    for project in &c.project_archived {
+        let _ = writeln!(out, "project_archived.{project} = on");
+    }
+    for project in &c.project_known {
+        let _ = writeln!(out, "project_known.{project} = on");
+    }
     out
 }
 
@@ -381,6 +452,10 @@ mod tests {
             ],
             advisor_projects: vec!["prumo".into()],
             advisor_goals: vec![("prumo".into(), "lançar o app v2".into())],
+            review_last: vec![("prumo".into(), "2026-07-15".into())],
+            review_every_days: Some(14),
+            project_archived: vec!["antigo".into()],
+            project_known: vec!["cliente".into()],
         };
 
         let s = serialize(&c);
@@ -587,6 +662,10 @@ mod tests {
             advisor_links: vec![("errand".into(), "octocat/errand".into())],
             advisor_projects: vec!["errand".into()],
             advisor_goals: vec![("errand".into(), "zerar a caixa de entrada".into())],
+            review_last: vec![("errand".into(), "2026-07-01".into())],
+            review_every_days: None,
+            project_archived: vec![],
+            project_known: vec![],
         };
         written.save_to(&path).expect("save should succeed");
         assert!(path.exists());

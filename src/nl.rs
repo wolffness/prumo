@@ -136,7 +136,10 @@ fn contains_trigger(text: &str) -> bool {
     let lower = ascii_lower(text);
     let words: Vec<&str> = lower
         .split_whitespace()
-        .map(|w| w.trim_matches(|c: char| matches!(c, ',' | '.' | ';' | ':' | '!' | '?')))
+        .map(|w| {
+            w.trim_matches(['"', '\'', '(', ')'])
+                .trim_matches(|c: char| matches!(c, ',' | '.' | ';' | ':' | '!' | '?'))
+        })
         .collect();
 
     const SINGLE_TRIGGERS: &[&str] = &[
@@ -213,11 +216,17 @@ fn contains_trigger(text: &str) -> bool {
         "avisar",
     ];
 
+    // `today` only gates rollover direction for the yearless "D/M" shape,
+    // which doesn't affect whether the word looks like a date at all.
+    let epoch = NaiveDate::from_ymd_opt(2000, 1, 1).expect("valid date");
     for w in &words {
         if SINGLE_TRIGGERS.contains(w) {
             return true;
         }
         if parse_month(w).is_some() {
+            return true;
+        }
+        if parse_slash_date(w, epoch).is_some() {
             return true;
         }
     }
@@ -281,16 +290,22 @@ impl<'a> Scratch<'a> {
         }
     }
 
-    /// Lower-case slice with trailing punctuation stripped — what most pattern
-    /// matchers want to compare against.
+    /// Lower-case slice with surrounding punctuation stripped — what most
+    /// pattern matchers want to compare against. Quotes/parens are stripped
+    /// on both ends so a quoted date ("10 de agosto") still matches; other
+    /// marks only trail (an apostrophe inside a word must survive).
     fn word_lc(&self, range: (usize, usize)) -> &str {
-        self.lower[range.0..range.1].trim_end_matches([',', '.', ';', ':', '!', '?'])
+        self.lower[range.0..range.1]
+            .trim_matches(['"', '\'', '(', ')'])
+            .trim_end_matches([',', '.', ';', ':', '!', '?'])
     }
 
-    /// Original-case slice with trailing punctuation stripped — used when the
-    /// extracted value needs to round-trip (e.g. tag names).
+    /// Original-case slice with surrounding punctuation stripped — used when
+    /// the extracted value needs to round-trip (e.g. tag names).
     fn word_orig(&self, range: (usize, usize)) -> &str {
-        self.text[range.0..range.1].trim_end_matches([',', '.', ';', ':', '!', '?'])
+        self.text[range.0..range.1]
+            .trim_matches(['"', '\'', '(', ')'])
+            .trim_end_matches([',', '.', ';', ':', '!', '?'])
     }
 
     /// Remaining body text after stripping consumed bytes and collapsing
@@ -748,6 +763,39 @@ fn pass_date(scratch: &mut Scratch, p: &mut ParsedNl, today: NaiveDate, rec_hint
     }
 }
 
+/// Parses "D/M" or "D/M/YYYY" — day-first, matching Brazilian usage. A
+/// missing year rolls to the next occurrence (today counts as satisfying
+/// it), mirroring `next_month_day`.
+fn parse_slash_date(w: &str, today: NaiveDate) -> Option<NaiveDate> {
+    let mut parts = w.split('/');
+    let day: u32 = parts.next()?.parse().ok()?;
+    let month: u32 = parts.next()?.parse().ok()?;
+    let year_part = parts.next();
+    if parts.next().is_some() {
+        return None; // more than 3 segments: not a date
+    }
+    if !(1..=31).contains(&day) || !(1..=12).contains(&month) {
+        return None;
+    }
+    match year_part {
+        Some(y) => {
+            if y.len() != 4 {
+                return None;
+            }
+            let year: i32 = y.parse().ok()?;
+            NaiveDate::from_ymd_opt(year, month, day)
+        }
+        None => {
+            let d = NaiveDate::from_ymd_opt(today.year(), month, day)?;
+            Some(if d < today {
+                NaiveDate::from_ymd_opt(today.year() + 1, month, day).unwrap_or(d)
+            } else {
+                d
+            })
+        }
+    }
+}
+
 /// Next occurrence (today included) of day-of-month `day`. Months missing
 /// the day (e.g. 31 in April) are skipped to the next month that has it.
 fn next_month_day(today: NaiveDate, day: u32) -> Option<NaiveDate> {
@@ -785,6 +833,14 @@ fn match_date_at(
     let w = scratch.word_lc(words[i]);
 
     if let Ok(d) = NaiveDate::parse_from_str(w, "%Y-%m-%d") {
+        return Some((d, 1));
+    }
+
+    // "D/M" / "D/M/YYYY" — the common Brazilian numeric date shape (day
+    // first, unlike the US "M/D"). A 2-digit year is not accepted: "10/08"
+    // alone is common, but "10/08/26" is ambiguous with fractions/ratios in
+    // prose and not worth the false-positive risk.
+    if let Some(d) = parse_slash_date(w, today) {
         return Some((d, 1));
     }
 
@@ -875,7 +931,7 @@ fn match_date_at(
         && let Some(day) = parse_day_ordinal(scratch.word_lc(words[i + 1]))
     {
         let (year, consumed) = match try_parse_year(scratch, words, i + 2) {
-            Some(y) => (y, 3),
+            Some((y, extra)) => (y, 2 + extra),
             None => (today.year(), 2),
         };
         if let Some(d) = NaiveDate::from_ymd_opt(year, month, day) {
@@ -898,7 +954,7 @@ fn match_date_at(
             && let Some(month) = parse_month(scratch.word_lc(words[j]))
         {
             let (year, year_extra) = match try_parse_year(scratch, words, j + 1) {
-                Some(y) => (y, 1),
+                Some((y, extra)) => (y, extra),
                 None => (today.year(), 0),
             };
             let consumed = j - i + 1 + year_extra;
@@ -968,15 +1024,23 @@ fn next_alive_match(
     match_date_at(scratch, words, i, today)
 }
 
-fn try_parse_year(scratch: &Scratch, words: &[(usize, usize)], i: usize) -> Option<i32> {
+/// Parses the year following a month, returning `(year, words consumed)`.
+/// `words consumed` is 1 for the plain "April 15, 2026" shape (the comma
+/// sticks to "15,", handled by `word_lc`'s trailing-punctuation strip) and 2
+/// for the Portuguese "10 de agosto de 2026" shape, where a "de"/"of"
+/// connector sits between the month and the year.
+fn try_parse_year(scratch: &Scratch, words: &[(usize, usize)], i: usize) -> Option<(i32, usize)> {
     if i >= words.len() {
         return None;
     }
-    // `word_lc` already strips trailing punctuation, which handles the
-    // common "April 15, 2026" shape (the comma sticks to "15,").
+    let (i, extra) = if matches!(scratch.word_lc(words[i]), "de" | "of") && i + 1 < words.len() {
+        (i + 1, 2)
+    } else {
+        (i, 1)
+    };
     let y: i32 = scratch.word_lc(words[i]).parse().ok()?;
     if (1900..=9999).contains(&y) {
-        Some(y)
+        Some((y, extra))
     } else {
         None
     }
@@ -1241,6 +1305,40 @@ mod tests {
 
     fn d(s: &str) -> NaiveDate {
         NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+
+    #[test]
+    fn parses_day_de_month_de_year() {
+        let p = try_parse("renovar passaporte 10 de agosto de 2026", d("2026-07-29")).unwrap();
+        assert_eq!(p.due, Some(d("2026-08-10")));
+        assert_eq!(p.body, "renovar passaporte");
+    }
+
+    #[test]
+    fn parses_quoted_date_phrase() {
+        let p = try_parse("renovar passaporte \"10 de agosto\"", d("2026-07-29")).unwrap();
+        assert_eq!(p.due, Some(d("2026-08-10")));
+        let p = try_parse("renovar passaporte '10 de agosto'", d("2026-07-29")).unwrap();
+        assert_eq!(p.due, Some(d("2026-08-10")));
+    }
+
+    #[test]
+    fn parses_slash_date_day_first() {
+        // Sem ano: rola para o próximo 10/08 se já passou este ano.
+        let p = try_parse("renovar passaporte 10/08", d("2026-07-29")).unwrap();
+        assert_eq!(p.due, Some(d("2026-08-10")));
+        let p = try_parse("renovar passaporte 10/08", d("2026-09-01")).unwrap();
+        assert_eq!(p.due, Some(d("2027-08-10")));
+        let p = try_parse("renovar passaporte 10/08/2027", d("2026-07-29")).unwrap();
+        assert_eq!(p.due, Some(d("2027-08-10")));
+    }
+
+    #[test]
+    fn slash_date_rejects_garbage_and_2_digit_year() {
+        assert_eq!(parse_slash_date("32/01", d("2026-07-29")), None);
+        assert_eq!(parse_slash_date("10/13", d("2026-07-29")), None);
+        assert_eq!(parse_slash_date("10/08/26", d("2026-07-29")), None);
+        assert_eq!(parse_slash_date("1/2/3/4", d("2026-07-29")), None);
     }
 
     #[test]
