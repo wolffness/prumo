@@ -134,8 +134,8 @@ fn view() -> Section {
             (
                 "P",
                 tr(
-                    "all projects · x archive/unarchive",
-                    "todos os projetos · x arquivar/desarquivar",
+                    "projects · Enter history · x archive",
+                    "projetos · Enter histórico · x arquivar",
                 ),
             ),
             (
@@ -215,6 +215,7 @@ fn system() -> Section {
         vec![
             (": / Ctrl-P", tr("command palette", "paleta de comandos")),
             ("s", tr("share capture QR", "QR de captura")),
+            ("mcp", tr("MCP · Claude --help", "MCP · Claude --help")),
             ("? / ,", tr("help / settings", "ajuda / configurações")),
             ("q", tr("quit", "sair")),
         ],

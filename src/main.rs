@@ -187,6 +187,9 @@ fn print_usage() {
     println!("  update                    print instructions for upgrading {name}");
     println!("  mcp                       run the local MCP server on stdio");
     println!();
+    println!("MCP (Claude Code):");
+    println!("  claude mcp add --scope user --transport stdio prumo -- {name} mcp");
+    println!();
     println!("Options:");
     println!("  -f, --force      skip confirmation prompts (e.g. for del)");
     println!("      --json       machine-readable output for the commands above");

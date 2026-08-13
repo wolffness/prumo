@@ -13,7 +13,7 @@ expression: buffer_to_text(&buf)
    +p│                                                l                 list view             │     
    +t│  EDITING                                       a                 archive view          │     
      │    n                 new task                  R                 review projects       │     
- CONT│    e                 edit line (normal)        P                 all projects · x archi│     
+ CONT│    e                 edit line (normal)        P                 projects · Enter histo│     
    @e│    i                 edit line (insert)        Shift-J           project journal · n ne│     
    @h│    r                 reschedule task           A                 archive completed     │     
    @l│    x                 complete → archive        H                 show done in list     │     
@@ -28,9 +28,9 @@ expression: buffer_to_text(&buf)
      │  SYSTEM                                          i / Esc         panel: write / back·cl│     
      │    : / Ctrl-P        command palette             Shift+arrows    panel: select text    │     
      │    s                 share capture QR            Del/Backspace   panel: delete selectio│     
-     │    ? / ,             help / settings             Space / n       panel: toggle / new su│     
-     │    q                 quit                        Ctrl-S / o      panel: save / $EDITOR │     
-     │                                                o / O             open / create note in │     
+     │    mcp               MCP · Claude --help         Space / n       panel: toggle / new su│     
+     │    ? / ,             help / settings             Ctrl-S / o      panel: save / $EDITOR │     
+     │    q                 quit                      o / O             open / create note in │     
      │                                                t                 attach file (drag or p│     
      │                                                Enter             open attachments      │     
      │                                                                                        │     
